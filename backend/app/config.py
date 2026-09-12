@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     planetary_stac_url: str = os.getenv("PLANETARY_STAC_URL", "https://planetarycomputer.microsoft.com/api/stac/v1")
     planetary_sign_url: str = os.getenv("PLANETARY_SIGN_URL", "https://planetarycomputer.microsoft.com/api/sas/v1/sign")
 
+    # Standalone satellite-service microservice (separate repo/folder) — real
+    # Sentinel-2 fetch + pretrained-model change detection. When SATELLITE_MODE
+    # is "real", non-demo projects are analyzed by calling out to this service
+    # instead of the in-process satellite_provider/change_detector pipeline.
+    satellite_service_url: str = os.getenv("SATELLITE_SERVICE_URL", "http://localhost:8001")
+
     # Vision analysis
     ai_vision_provider: str = os.getenv("AI_VISION_PROVIDER", "gemini")
     ai_vision_model: str = os.getenv("AI_VISION_MODEL", "gemini-2.5-flash-lite")

@@ -22,16 +22,30 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg2://infrawatch:infrawatch@db:5432/infrawatch
-      SATELLITE_MODE: ${SATELLITE_MODE:-real}
+      SATELLITE_MODE: ${SATELLITE_MODE:-demo}
       COPERNICUS_CLIENT_ID: ${COPERNICUS_CLIENT_ID:-}
       COPERNICUS_CLIENT_SECRET: ${COPERNICUS_CLIENT_SECRET:-}
+      SATELLITE_SERVICE_URL: http://satellite-service:8001
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+      satellite-service:
+        condition: service_started
     command: >
       sh -c "python -m scripts.seed_demo_data && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  # Standalone microservice — kept in its own sibling folder/repo on purpose,
+  # not merged into backend/. See ../satellite-service/docs/04-integration.md.
+  satellite-service:
+    build: ../satellite-service
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "8001:8001"
+    volumes:
+      - satellite_data:/app/data
 
   frontend:
     build: ./frontend
@@ -44,3 +58,4 @@ services:
 
 volumes:
   pgdata:
+  satellite_data:

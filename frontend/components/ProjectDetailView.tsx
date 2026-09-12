@@ -3,7 +3,9 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { analyzeProject, getEvidence, getProject } from "@/lib/api";
+import { analyzeProject, getEvidence, getProject, resolveAssetUrl } from "@/lib/api";
+import { generateFieldReport } from "@/lib/pdfReport";
+import BeforeAfterSlider, { ChangeRegion } from "./BeforeAfterSlider";
 import { AnalysisResult, Evidence, ProjectDetail } from "@/types/project";
 import StatusBadge from "./StatusBadge";
 
@@ -16,6 +18,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
   const [error, setError]         = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [ingesting, setIngesting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [activeTab, setActiveTab] = useState<"satellite" | "milestones" | "financials">("satellite");
   const mapRef = useRef<HTMLDivElement>(null);
 
@@ -65,6 +68,19 @@ export default function ProjectDetailView({ id }: { id: string }) {
     if (mapRef.current) mapRef.current.scrollIntoView({ behavior: "smooth" });
   };
 
+  const handleExportPdf = async () => {
+    if (!project || !analysis) return;
+    setExportingPdf(true);
+    setError(null);
+    try {
+      await generateFieldReport(project, analysis, evidence);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "PDF export failed");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "—";
     try {
@@ -112,6 +128,25 @@ export default function ProjectDetailView({ id }: { id: string }) {
   const t1 = analysis?.t1_scene;
   const t2 = analysis?.t2_scene;
   const ai = analysis?.ai_analysis;
+
+  // The image space the detector actually ran in — bounding_boxes are in
+  // these pixel coordinates (assumes a square analyzed image, true for both
+  // the demo-mode and satellite-service pipelines).
+  const imageSizePx = analysis?.total_pixel_count ? Math.round(Math.sqrt(analysis.total_pixel_count)) : undefined;
+
+  // Match each bounding box to its richer GeoJSON properties (type/confidence/area) —
+  // both arrays are built from the same ordered candidate list server-side.
+  const changeRegions: ChangeRegion[] = (analysis?.bounding_boxes || []).map((box, i) => {
+    const feature = analysis?.geojson_overlay?.features?.[i];
+    const props = feature?.properties;
+    return {
+      id: feature?.id || `region-${i}`,
+      x: box.x, y: box.y, width: box.width, height: box.height,
+      label: props?.change_type || "change",
+      confidence: props?.confidence ?? props?.ai_confidence ?? 0,
+      areaM2: props?.estimated_area_m2,
+    };
+  });
 
   // ── Shared card style ────────────────────────────────────────────
   const cardStyle: React.CSSProperties = {
@@ -193,6 +228,34 @@ export default function ProjectDetailView({ id }: { id: string }) {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                 </svg>
                 Fetch Latest Sentinel-2 (STAC)
+              </>
+            )}
+          </button>
+
+          <button
+            id="detail-export-pdf-btn"
+            onClick={handleExportPdf}
+            disabled={exportingPdf || !analysis}
+            style={{
+              ...pillBtn,
+              background: "var(--color-canvas)",
+              color: "var(--color-ink)",
+              border: "1px solid var(--color-hairline)",
+              display: "flex", alignItems: "center", gap: 8,
+              opacity: exportingPdf || !analysis ? 0.5 : 1,
+            }}
+          >
+            {exportingPdf ? (
+              <>
+                <span className="w-3 h-3 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--color-primary)" }} />
+                Generating PDF...
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: "var(--color-primary)" }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M12 4a8 8 0 100 16 8 8 0 000-16z" />
+                </svg>
+                Export Report (PDF)
               </>
             )}
           </button>
@@ -377,6 +440,24 @@ export default function ProjectDetailView({ id }: { id: string }) {
                       {project.latitude.toFixed(4)}°N, {project.longitude.toFixed(4)}°E
                     </span>
                   </div>
+
+                  {/* Before / after satellite image comparison */}
+                  {analysis.before_image_url && analysis.after_image_url && (
+                    <div>
+                      <BeforeAfterSlider
+                        beforeUrl={resolveAssetUrl(analysis.before_image_url)}
+                        afterUrl={resolveAssetUrl(analysis.after_image_url)}
+                        beforeLabel={`T1 · ${formatDate(t1?.acquisition_date)}`}
+                        afterLabel={`T2 · ${formatDate(t2?.acquisition_date)}`}
+                        regions={changeRegions}
+                        imageSizePx={imageSizePx}
+                      />
+                      <p style={{ fontSize: 11, color: "var(--color-ink-mute)", marginTop: 8, textAlign: "center" }}>
+                        Drag the handle to compare the baseline (T1) and latest observation (T2) satellite scenes.
+                        {changeRegions.length > 0 && " Hover a highlighted region for details."}
+                      </p>
+                    </div>
+                  )}
 
                   {/* AI reasoning box */}
                   {ai && (

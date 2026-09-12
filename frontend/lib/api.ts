@@ -2,11 +2,20 @@ import { AnalysisResult, Evidence, ProjectSummary, ProjectDetail, KPISummary } f
 
 const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 // Normalize localhost to 127.0.0.1 to eliminate Windows IPv6 (::1) 30s connection timeout
-const API_BASE = rawApiBase.replace("localhost", "127.0.0.1");
+export const API_BASE = rawApiBase.replace("localhost", "127.0.0.1");
 
-async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+/** Resolve an image/asset path returned by the backend into a full URL.
+ * Demo-mode assets come back as a backend-relative path (e.g. "/demo-assets/x.png");
+ * real satellite-service results come back already-absolute (e.g. "http://localhost:8001/data/...").
+ * Returns "" for empty/missing input so callers can safely check truthiness. */
+export function resolveAssetUrl(url?: string | null): string {
+  if (!url) return "";
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE}${url}`;
+}
+
+async function fetchJson<T>(path: string, init?: RequestInit, timeoutMs = 8000): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       cache: "no-store",
@@ -35,7 +44,9 @@ export function getKpiSummary(): Promise<KPISummary> {
 }
 
 export function analyzeProject(id: number | string): Promise<AnalysisResult> {
-  return fetchJson<AnalysisResult>(`/api/projects/${id}/analyze`, { method: "POST" });
+  // Real satellite-service analysis (fetch + model) genuinely takes 10-30s,
+  // well past the 8s default meant for quick DB-only reads.
+  return fetchJson<AnalysisResult>(`/api/projects/${id}/analyze`, { method: "POST" }, 120000);
 }
 
 export function getEvidence(id: number | string): Promise<Evidence> {

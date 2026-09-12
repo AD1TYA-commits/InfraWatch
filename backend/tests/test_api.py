@@ -131,3 +131,24 @@ def test_analysis_api_workflow():
     assert "t2_scene" in body
     assert "geojson_overlay" in body
     assert body["geojson_overlay"]["type"] == "FeatureCollection"
+
+
+def test_create_project():
+    resp = client.post(
+        "/api/projects",
+        json={
+            "name": "[TEST] Created Project",
+            "project_type": "Roads",
+            "latitude": 28.6,
+            "longitude": 77.2,
+            "reported_progress": 42.0,
+        },
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["name"] == "[TEST] Created Project"
+    assert body["is_demo"] is False
+    assert body["status"] == "normal"
+
+    listed = client.get("/api/projects").json()
+    assert any(p["id"] == body["id"] for p in listed)

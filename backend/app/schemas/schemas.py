@@ -75,6 +75,18 @@ class ProjectOut(BaseModel):
     anomalies: List[AnomalyOut] = []
 
 
+class ProjectCreateIn(BaseModel):
+    name: str
+    project_type: str
+    description: str = ""
+    latitude: float
+    longitude: float
+    reported_progress: float = 0.0
+    approved_cost: Optional[float] = None
+    start_date: Optional[datetime] = None
+    expected_end_date: Optional[datetime] = None
+
+
 class ProjectSummary(BaseModel):
     """Lightweight shape used for the dashboard map/list."""
     model_config = ConfigDict(from_attributes=True)
@@ -86,6 +98,7 @@ class ProjectSummary(BaseModel):
     longitude: float
     reported_progress: float
     status: str
+    latest_image_url: Optional[str] = None
 
 
 class KPISummary(BaseModel):

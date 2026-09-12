@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import { ProjectSummary, GeoJSONFeatureCollection } from "@/types/project";
 import StatusBadge from "./StatusBadge";
 import { useTheme } from "./ThemeProvider";
+import { resolveAssetUrl } from "@/lib/api";
 
 // Semantic dot colors that read on the map tiles
 // Least / High / Critical -> Red (#ef4444), Medium / Watch / Review -> Yellow (#eab308), Normal -> Green (#10b981)
@@ -115,7 +116,7 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
 
   return (
     <div
-      className="relative overflow-hidden"
+      className="relative overflow-hidden isolate"
       style={{ borderRadius: "var(--radius-lg)", border: "1px solid var(--color-hairline)" }}
     >
       {/* ── Map Control Bar ────────────────────────────────────── */}
@@ -254,7 +255,7 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
                     }}
                   >
                     <img
-                      src={`${apiBase}/demo-assets/project_${p.id}_after.png`}
+                      src={resolveAssetUrl(p.latest_image_url) || `${apiBase}/demo-assets/project_${p.id}_after.png`}
                       alt={p.name}
                       style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                     />
@@ -266,7 +267,7 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
                         borderRadius: "var(--radius-xs)", fontFeatureSettings: '"tnum"',
                       }}
                     >
-                      Demo image
+                      {p.latest_image_url ? "Latest observation" : "Demo image"}
                     </span>
                   </div>
 

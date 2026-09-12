@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           {/* ── Navigation bar ────────────────────────────────────────── */}
           <header
-            className="sticky top-0 z-50 transition-colors duration-200"
+            className="sticky top-0 z-[1100] transition-colors duration-200"
             style={{
               background: "var(--color-canvas)",
               borderBottom: "1px solid var(--color-hairline)",

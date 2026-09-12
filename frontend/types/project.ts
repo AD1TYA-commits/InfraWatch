@@ -8,6 +8,7 @@ export interface ProjectSummary {
   longitude: number;
   reported_progress: number;
   status: RiskStatus;
+  latest_image_url?: string | null;
 }
 
 export interface Milestone {
