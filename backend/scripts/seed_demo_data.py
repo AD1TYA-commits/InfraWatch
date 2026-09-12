@@ -1,5 +1,5 @@
 """
-Seed the database with real satellite imagery telemetry, Gemini 2.5 Flash-Lite reasoning, and GeoJSON overlays.
+Seed the local database with bundled demo projects and image pairs.
 Run with:
 
     python -m scripts.seed_demo_data
@@ -75,8 +75,7 @@ def seed():
             db.add(project)
             db.flush()
 
-            # Execute dynamic pipeline for each demo project
-            print(f"Executing AI-first satellite pipeline for Project #{index}: {data['name']}...")
+            print(f"Preparing demo analysis for Project #{index}: {data['name']}...")
             res = execute_pipeline(project, db)
 
             db.add_all([
@@ -97,7 +96,7 @@ def seed():
                 f"T2={res.t2_scene.acquisition_date.date()} ({res.t2_scene.source}), Candidates={res.candidate_count}"
             )
 
-        print(f"\nSuccessfully seeded {len(DEMO_PROJECTS)} projects with real satellite imagery and AI pipeline!")
+        print(f"\nSeeded {len(DEMO_PROJECTS)} demo projects.")
     finally:
         db.close()
 

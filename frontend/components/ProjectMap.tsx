@@ -266,7 +266,7 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
                         borderRadius: "var(--radius-xs)", fontFeatureSettings: '"tnum"',
                       }}
                     >
-                      Satellite Observation
+                      Demo image
                     </span>
                   </div>
 

@@ -16,7 +16,6 @@ export default function ProjectDetailView({ id }: { id: string }) {
   const [error, setError]         = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [ingesting, setIngesting] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<{ title: string; url: string } | null>(null);
   const [activeTab, setActiveTab] = useState<"satellite" | "milestones" | "financials">("satellite");
   const mapRef = useRef<HTMLDivElement>(null);
 
@@ -29,13 +28,6 @@ export default function ProjectDetailView({ id }: { id: string }) {
       })
       .catch((e) => setError(e.message));
   }, [id]);
-
-  const assetUrl = (path: string) => {
-    if (!path) return "";
-    if (path.startsWith("http://") || path.startsWith("https://")) return path;
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-    return `${base.replace(/\/$/, "")}${path.startsWith("/") ? "" : "/"}${path}`;
-  };
 
   const runAnalysis = async () => {
     setAnalyzing(true);
@@ -331,7 +323,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
                         fontSize: 10, fontWeight: 400, letterSpacing: "0.1px",
                       }}
                     >
-                      {analysis?.ai_model || "gemini-3.5-flash-lite"}
+                      {analysis?.ai_model || "gemini-2.5-flash-lite"}
                     </span>
                   </div>
                   <p style={{ fontSize: 13, color: "var(--color-ink-mute)", marginTop: 4 }}>
@@ -362,7 +354,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                         <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      {analysis ? "Re-Run AI Analysis" : "Run Satellite Screening"}
+                      {analysis ? "Run Analysis Again" : "Run Image Analysis"}
                     </>
                   )}
                 </button>
@@ -379,90 +371,11 @@ export default function ProjectDetailView({ id }: { id: string }) {
                   >
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#10b981" }} />
-                      <span style={{ fontSize: 12, color: "var(--color-ink-secondary)", fontWeight: 400 }}>High-Resolution Earth Observation Telemetry Active</span>
+                      <span style={{ fontSize: 12, color: "var(--color-ink-secondary)", fontWeight: 400 }}>Image comparison ready</span>
                     </div>
                     <span className="tabular" style={{ fontSize: 12, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>
                       {project.latitude.toFixed(4)}°N, {project.longitude.toFixed(4)}°E
                     </span>
-                  </div>
-
-                  {/* Satellite image grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {[
-                      {
-                        label: "Before Scene (T1)",
-                        tag: "T1 Baseline",
-                        date: formatDate(t1?.acquisition_date),
-                        cloud: t1?.cloud_percentage ?? 0,
-                        source: t1?.source || "Sentinel-2",
-                        url: assetUrl(analysis.before_image_url),
-                        tagColor: "var(--color-primary)",
-                      },
-                      {
-                        label: "After Scene (T2)",
-                        tag: "T2 Observation",
-                        date: formatDate(t2?.acquisition_date),
-                        cloud: t2?.cloud_percentage ?? 0,
-                        source: t2?.source || "Sentinel-2",
-                        url: assetUrl(analysis.after_image_url),
-                        tagColor: "var(--color-primary)",
-                      },
-                      {
-                        label: "AI Overlay",
-                        tag: `Candidates (${analysis.candidate_count ?? 0})`,
-                        date: `${analysis.observable_change_percent}% area`,
-                        cloud: null as any,
-                        source: "Satellite Differencing",
-                        url: assetUrl(analysis.change_overlay_url),
-                        tagColor: "#ea2261",
-                      },
-                    ].map(({ label, tag, date, cloud, source, url, tagColor }, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => setSelectedImage({ title: label, url })}
-                        className="group cursor-pointer"
-                        style={{ border: "1px solid var(--color-hairline)", borderRadius: "var(--radius-md)", overflow: "hidden", background: "var(--color-canvas)", transition: "box-shadow 0.2s ease" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-2)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
-                      >
-                        {/* Image */}
-                        <div style={{ position: "relative", background: "var(--color-canvas-soft)", aspectRatio: "1 / 1", overflow: "hidden" }}>
-                          <img
-                            src={url} alt={label}
-                            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.3s ease" }}
-                            className="group-hover:scale-105"
-                          />
-                          <span
-                            style={{
-                              position: "absolute", top: 8, left: 8,
-                              background: "rgba(255,255,255,0.92)", color: tagColor,
-                              padding: "2px 8px", borderRadius: "var(--radius-pill)",
-                              fontSize: 10, fontWeight: 400, letterSpacing: "0.1px",
-                              border: `1px solid ${tagColor}22`,
-                            }}
-                          >
-                            {tag}
-                          </span>
-                        </div>
-
-                        {/* Meta */}
-                        <div style={{ padding: "10px 12px" }}>
-                          <div className="flex justify-between items-baseline mb-1">
-                            <span style={{ fontSize: 13, fontWeight: 300, color: "var(--color-ink)" }}>{label}</span>
-                            <span className="tabular" style={{ fontSize: 12, color: "var(--color-primary)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>{date}</span>
-                          </div>
-                          {cloud !== null && (
-                            <div className="tabular flex justify-between" style={{ fontSize: 11, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>
-                              <span>Cloud cover</span>
-                              <span style={{ color: "var(--color-ink-secondary)" }}>{cloud}%</span>
-                            </div>
-                          )}
-                          <div style={{ fontSize: 10, color: "var(--color-ink-mute)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {source}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
                   </div>
 
                   {/* AI reasoning box */}
@@ -490,7 +403,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
                               Gemini Vision AI Analysis
                             </h4>
                             <p className="tabular" style={{ fontSize: 11, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>
-                              Model: {analysis.ai_model || "gemini-3.5-flash-lite"}
+                              Model: {analysis.ai_model || "gemini-2.5-flash-lite"}
                             </p>
                           </div>
                         </div>
@@ -720,51 +633,6 @@ export default function ProjectDetailView({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* ── Lightbox Modal ───────────────────────────────────────── */}
-      {selectedImage && (
-        <div
-          onClick={() => setSelectedImage(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(13,37,61,0.6)", backdropFilter: "blur(6px)", padding: 16 }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: "56rem", width: "100%",
-              background: "var(--color-canvas)", border: "1px solid var(--color-hairline)",
-              borderRadius: "var(--radius-xl)", overflow: "hidden",
-              boxShadow: "var(--shadow-2)",
-            }}
-          >
-            {/* Lightbox header */}
-            <div
-              className="flex items-center justify-between"
-              style={{ padding: "14px 20px", borderBottom: "1px solid var(--color-hairline)" }}
-            >
-              <h3 style={{ fontSize: 15, fontWeight: 300, letterSpacing: "-0.26px", color: "var(--color-ink)" }}>
-                {selectedImage.title}
-              </h3>
-              <button
-                id="lightbox-close-btn"
-                onClick={() => setSelectedImage(null)}
-                style={{
-                  ...pillBtn,
-                  background: "var(--color-canvas-soft)",
-                  color: "var(--color-ink-mute)",
-                  border: "1px solid var(--color-hairline)",
-                  fontSize: 12,
-                }}
-              >
-                Close
-              </button>
-            </div>
-
-            <div style={{ maxHeight: "75vh", overflow: "hidden", background: "var(--color-canvas-soft)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-              <img src={selectedImage.url} alt={selectedImage.title} style={{ maxHeight: "70vh", width: "auto", objectFit: "contain", borderRadius: "var(--radius-md)" }} />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

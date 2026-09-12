@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # Use an isolated, disposable SQLite DB for tests so we never touch a dev DB.
 os.environ["DATABASE_URL"] = "sqlite:///./test_infrawatch.db"
+os.environ["SATELLITE_MODE"] = "demo"
 
 import pytest
 from datetime import datetime, timezone
@@ -15,7 +16,6 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.database import Base, engine, SessionLocal
 from app.models.models import Project, SatelliteObservation
-from app.services.demo_images import generate_demo_images
 from app.satellite_provider import EsriProvider, SatelliteScene
 from app.change_detector import ChangeDetector
 from app.geo_processor import ChangeGeoProcessor

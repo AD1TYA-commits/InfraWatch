@@ -63,8 +63,13 @@ def execute_pipeline(project: Project, db: Session) -> AnalysisResultOut:
     demo_b_path = processor.asset_dir / f"project_{project.id}_before.png"
     demo_a_path = processor.asset_dir / f"project_{project.id}_after.png"
 
-    if demo_b_path.exists() and demo_a_path.exists():
-        logger.info(f"Loading verified temporal satellite scenes for Project #{project.id}")
+    uses_demo_assets = (
+        settings.satellite_mode != "real"
+        and demo_b_path.exists()
+        and demo_a_path.exists()
+    )
+    if uses_demo_assets:
+        logger.info(f"Loading bundled demo image pair for Project #{project.id}")
         t1_arr = cv2.imread(str(demo_b_path))
         t2_arr = cv2.imread(str(demo_a_path))
         delta = 0.0025
@@ -75,20 +80,20 @@ def execute_pipeline(project: Project, db: Session) -> AnalysisResultOut:
         t2_date = datetime(2025, 2, 15, tzinfo=timezone.utc)
 
         t1_scene = SatelliteScene(
-            scene_id=f"sentinel2-l2a-t1-{project.id}",
+            scene_id=f"demo-t1-{project.id}",
             acquisition_date=t1_date,
             cloud_percentage=0.0,
-            source="sentinel-2-l2a-planetary-computer",
+            source="bundled-demo-image",
             image_href=f"/demo-assets/{demo_b_path.name}",
             bbox=bounds,
             crs="EPSG:4326",
             resolution=0.5,
         )
         t2_scene = SatelliteScene(
-            scene_id=f"sentinel2-l2a-t2-{project.id}",
+            scene_id=f"demo-t2-{project.id}",
             acquisition_date=t2_date,
             cloud_percentage=0.0,
-            source="sentinel-2-l2a-planetary-computer",
+            source="bundled-demo-image",
             image_href=f"/demo-assets/{demo_a_path.name}",
             bbox=bounds,
             crs="EPSG:4326",
@@ -358,7 +363,8 @@ def execute_pipeline(project: Project, db: Session) -> AnalysisResultOut:
         )
     )
     project.status = severity if severity in ("normal", "watch", "high", "critical") else "watch"
-    project.is_demo = 0
+    if not uses_demo_assets:
+        project.is_demo = 0
     db.commit()
 
     duration = round(time.time() - start_time, 2)
@@ -400,8 +406,8 @@ def execute_pipeline(project: Project, db: Session) -> AnalysisResultOut:
         after_image_url=f"{base}{processed.t2_image_path.name}",
         change_mask_url=f"{base}{detection.mask_path.name}",
         change_overlay_url=f"{base}{detection.overlay_path.name}",
-        is_synthetic_demo=False,
-        method=f"Local OpenCV Differencing + {settings.ai_vision_provider}:{settings.ai_vision_model} Vision Reasoning + GeoJSON EPSG:4326 Overlay",
+        is_synthetic_demo=uses_demo_assets,
+        method=f"Local OpenCV differencing with {analyzer_output.usage.model} and GeoJSON overlay",
         t1_scene=t1_scene_out,
         t2_scene=t2_scene_out,
         candidate_count=len(detection.candidates),
@@ -424,9 +430,9 @@ def ingest_real_imagery(project_id: int, db: Session = Depends(get_db)):
     try:
         res = execute_pipeline(project, db)
         return IngestResultOut(
-            mode="real",
+            mode="demo" if res.is_synthetic_demo else "real",
             scenes=[res.t1_scene, res.t2_scene],
-            message=f"Ingested and analyzed satellite pair ({res.t1_scene.source}).",
+            message=f"Analyzed image pair ({res.t1_scene.source}).",
         )
     except Exception as exc:
         logger.error(f"Ingestion failed for project {project_id}: {exc}")
@@ -475,7 +481,7 @@ def project_evidence(project_id: int, db: Session = Depends(get_db)):
             recommendation=res.recommendation,
             explanation=res.explanation,
             generated_at=datetime.now(timezone.utc),
-            is_synthetic_demo=False,
+            is_synthetic_demo=project.is_demo == 1,
         )
 
     observable = result.observed_progress

@@ -167,7 +167,7 @@ export default function Dashboard() {
           />
         </div>
         <p style={{ fontSize: 13, color: "var(--color-ink-mute)", letterSpacing: "-0.39px", fontFeatureSettings: '"tnum"' }}>
-          Loading InfraWatch GIS telemetry &amp; project index…
+          Loading projects…
         </p>
       </div>
     );
@@ -238,7 +238,7 @@ export default function Dashboard() {
                 <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: "#10b981" }} />
               </span>
               <span style={{ fontSize: 11, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>
-                SYNTHETIC DEMO · SENTINEL-2 L2A
+                DEMO IMAGE PAIRS
               </span>
             </div>
           </div>
@@ -321,7 +321,7 @@ export default function Dashboard() {
               <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: "var(--color-primary)", flexShrink: 0 }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
               </svg>
-              Project Registry &amp; Telemetry Index
+              Project Registry
             </h2>
 
             {/* Search input */}

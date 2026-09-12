@@ -1,8 +1,4 @@
-"""
-Multimodal Vision AI Satellite Change Analyzer for InfraWatch.
-
-Sends cost-optimized T1/T2 candidate crops to Gemini 2.5 Flash-Lite for structured change reasoning.
-"""
+"""Analyze candidate before/after image crops with Gemini or a local fallback."""
 from dataclasses import dataclass
 from datetime import datetime
 import json
@@ -43,7 +39,7 @@ class SatelliteChangeAnalyzer:
     def __init__(self):
         self.provider = settings.ai_vision_provider
         self.model_name = settings.ai_vision_model
-        self.api_key = settings.gemini_api_key or settings.openai_api_key
+        self.api_key = settings.gemini_api_key
 
     def _build_system_prompt(self) -> str:
         return (
@@ -103,10 +99,7 @@ class SatelliteChangeAnalyzer:
         try:
             if self.provider == "gemini":
                 return self._analyze_gemini(crops, t1_date, t2_date, project_name, project_type)
-            elif self.provider == "openai":
-                return self._analyze_openai(crops, t1_date, t2_date, project_name, project_type)
-            else:
-                return self._fallback_analysis(crops)
+            return self._fallback_analysis(crops)
         except Exception as exc:
             logger.error(f"Vision AI call failed ({self.provider}/{self.model_name}): {exc}. Falling back to CV result.")
             return self._fallback_analysis(crops)
@@ -149,7 +142,7 @@ class SatelliteChangeAnalyzer:
                 }
             })
 
-        # Gemini REST API request (v1beta using gemini-2.5-flash-lite)
+        # Gemini REST API request.
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent?key={self.api_key}"
         payload = {
             "contents": [{"parts": parts}],
@@ -177,17 +170,6 @@ class SatelliteChangeAnalyzer:
             ),
             crops=crops,
         )
-
-    def _analyze_openai(
-        self,
-        crops: List[CandidateCrop],
-        t1_date: datetime,
-        t2_date: datetime,
-        project_name: str,
-        project_type: str,
-    ) -> AnalyzerResult:
-        # Simple HTTP fallback to OpenAI GPT-4o vision if selected
-        return self._fallback_analysis(crops)
 
     def _parse_json_response(
         self, text_content: str, usage: AIUsage, crops: List[CandidateCrop]

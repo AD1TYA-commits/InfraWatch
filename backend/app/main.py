@@ -1,15 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.config import settings
 from app.database import Base, engine, SessionLocal
 from app.models.models import Project
 from app.api import health, projects
-from app.services.demo_images import ASSET_DIR, generate_demo_images
 from scripts.seed_demo_data import seed
 
 import sys
+
+ASSET_DIR = Path(__file__).resolve().parent / "demo_assets"
 
 Base.metadata.create_all(bind=engine)
 
@@ -34,8 +36,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

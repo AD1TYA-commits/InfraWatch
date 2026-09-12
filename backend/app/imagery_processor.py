@@ -174,9 +174,9 @@ class ImageryProcessor:
         t1_arr = self._download_raster(t1_scene, latitude, longitude, target_size)
         t2_arr = self._download_raster(t2_scene, latitude, longitude, target_size)
 
-        # Save derived BGR images to demo assets for serving
-        t1_path = self.asset_dir / f"project_{project_id}_before.png"
-        t2_path = self.asset_dir / f"project_{project_id}_after.png"
+        # Save the selected pair so it can be inspected or served later.
+        t1_path = self.asset_dir / f"project_{project_id}_t1.png"
+        t2_path = self.asset_dir / f"project_{project_id}_t2.png"
 
         cv2.imwrite(str(t1_path), t1_arr)
         cv2.imwrite(str(t2_path), t2_arr)

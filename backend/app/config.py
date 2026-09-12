@@ -16,30 +16,22 @@ class Settings(BaseSettings):
     #   postgresql+psycopg2://infrawatch:infrawatch@db:5432/infrawatch
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./infrawatch.db")
 
-    # Satellite mode: "demo" (default, uses local demo imagery, no external
-    # credentials needed) or "real" (Sentinel-2 via Copernicus Data Space).
+    # Satellite mode: "demo" uses bundled image pairs; "real" queries
+    # Sentinel-2 imagery through the configured STAC endpoint.
     satellite_mode: str = os.getenv("SATELLITE_MODE", "demo")
     satellite_provider: str = os.getenv("SATELLITE_PROVIDER", "planetary-computer")
 
-    # Copernicus Data Space credentials (only required when satellite_mode=real).
-    copernicus_client_id: str = os.getenv("COPERNICUS_CLIENT_ID", "")
-    copernicus_client_secret: str = os.getenv("COPERNICUS_CLIENT_SECRET", "")
-    copernicus_catalogue_url: str = os.getenv(
-        "COPERNICUS_CATALOGUE_URL", "https://catalogue.dataspace.copernicus.eu/odata/v1"
-    )
-    copernicus_token_url: str = os.getenv(
-        "COPERNICUS_TOKEN_URL",
-        "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
-    )
     max_cloud_percentage: float = float(os.getenv("MAX_CLOUD_PERCENTAGE", "20"))
     planetary_stac_url: str = os.getenv("PLANETARY_STAC_URL", "https://planetarycomputer.microsoft.com/api/stac/v1")
     planetary_sign_url: str = os.getenv("PLANETARY_SIGN_URL", "https://planetarycomputer.microsoft.com/api/sas/v1/sign")
 
-    # Vision AI configuration (Default: gemini-3.5-flash-lite)
+    # Vision analysis
     ai_vision_provider: str = os.getenv("AI_VISION_PROVIDER", "gemini")
-    ai_vision_model: str = os.getenv("AI_VISION_MODEL", "gemini-3.5-flash-lite")
+    ai_vision_model: str = os.getenv("AI_VISION_MODEL", "gemini-2.5-flash-lite")
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+
+    # Comma-separated browser origins permitted to call this API.
+    cors_origins: str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
 
     # AI Cost controls & Candidate extraction parameters
     ai_max_candidates: int = int(os.getenv("AI_MAX_CANDIDATES", "20"))
