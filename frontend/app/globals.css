@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Stripi Design Tokens ─────────────────────────────────────────── */
+:root {
+  /* Brand */
+  --color-primary:            #533afd;
+  --color-primary-deep:       #4434d4;
+  --color-primary-press:      #2e2b8c;
+  --color-primary-soft:       #665efd;
+  --color-primary-bg-sub:     #b9b9f9;
+  --color-brand-dark:         #1c1e54;
+  /* Ink */
+  --color-ink:                #0d253d;
+  --color-ink-secondary:      #273951;
+  --color-ink-mute:           #64748d;
+  --color-ink-mute-2:         #61718a;
+  --color-on-primary:         #ffffff;
+  /* Canvas */
+  --color-canvas:             #ffffff;
+  --color-canvas-soft:        #f6f9fc;
+  --color-canvas-cream:       #f5e9d4;
+  /* Borders */
+  --color-hairline:           #e3e8ee;
+  --color-hairline-input:     #a8c3de;
+  /* Accent */
+  --color-ruby:               #ea2261;
+  --color-magenta:            #f96bee;
+  --color-lemon:              #c8a96a;
+  --color-shadow-blue:        #003770;
+  /* Elevation */
+  --shadow-1: rgba(0,55,112,0.08) 0 1px 3px;
+  --shadow-2: rgba(0,55,112,0.08) 0 8px 24px, rgba(0,55,112,0.04) 0 2px 6px;
+  /* Radius */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-pill: 9999px;
+}
+
+[data-theme="dark"],
+.dark {
+  /* Brand */
+  --color-primary:            #7c68ff;
+  --color-primary-deep:       #9d8cff;
+  --color-primary-press:      #5b45f5;
+  --color-primary-soft:       #8e7dff;
+  --color-primary-bg-sub:     rgba(124, 104, 255, 0.15);
+  --color-brand-dark:         #000000;
+  /* Ink */
+  --color-ink:                #ffffff;
+  --color-ink-secondary:      #d4d4d8;
+  --color-ink-mute:           #a1a1aa;
+  --color-ink-mute-2:         #71717a;
+  --color-on-primary:         #ffffff;
+  /* Canvas */
+  --color-canvas:             #0a0a0a;
+  --color-canvas-soft:        #000000;
+  --color-canvas-cream:       #121212;
+  /* Borders */
+  --color-hairline:           #222222;
+  --color-hairline-input:     #2e2e2e;
+  /* Accent */
+  --color-ruby:               #f43f5e;
+  --color-magenta:            #f472b6;
+  --color-lemon:              #eab308;
+  --color-shadow-blue:        #000000;
+  /* Elevation */
+  --shadow-1: rgba(0, 0, 0, 0.7) 0 1px 3px;
+  --shadow-2: rgba(0, 0, 0, 0.9) 0 8px 24px, rgba(0, 0, 0, 0.6) 0 2px 6px;
+}
+
+
+/* ─── Base ──────────────────────────────────────────────────────────── */
+@layer base {
+  html {
+    font-feature-settings: "ss01";
+  }
+  body {
+    font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+    font-weight: 300;
+    color: var(--color-ink);
+    background-color: var(--color-canvas-soft);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01";
+  }
+  code, kbd, samp, pre {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-feature-settings: "tnum";
+  }
+}
+
+/* ─── Utility: tabular figure type ─────────────────────────────────── */
+.tabular {
+  font-feature-settings: "tnum";
+  letter-spacing: -0.42px;
+}
+
+/* ─── Leaflet — Light canvas popup style ───────────────────────────── */
+.leaflet-container {
+  background-color: #d1d5db !important;
+  border-radius: var(--radius-lg);
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-feature-settings: "ss01";
+}
+
+[data-theme="dark"] .leaflet-container {
+  background-color: #000000 !important;
+}
+
+
+.leaflet-popup-content-wrapper {
+  background-color: var(--color-canvas) !important;
+  color: var(--color-ink) !important;
+  border: 1px solid var(--color-hairline) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-2) !important;
+  padding: 0 !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+}
+
+.leaflet-popup-tip {
+  background-color: var(--color-canvas) !important;
+  box-shadow: none !important;
+}
+
+.leaflet-popup-close-button {
+  color: var(--color-ink-mute) !important;
+  font-size: 18px !important;
+  padding: 6px 8px !important;
+}
+.leaflet-popup-close-button:hover {
+  color: var(--color-ink) !important;
+}
+
+.leaflet-control-zoom {
+  border: 1px solid var(--color-hairline) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-1) !important;
+  overflow: hidden;
+}
+.leaflet-control-zoom a {
+  background-color: var(--color-canvas) !important;
+  color: var(--color-ink-mute) !important;
+  border-color: var(--color-hairline) !important;
+  font-weight: 400 !important;
+}
+.leaflet-control-zoom a:hover {
+  background-color: var(--color-canvas-soft) !important;
+  color: var(--color-ink) !important;
+}
+
+/* ─── Custom Scrollbar ──────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-canvas-soft); }
+::-webkit-scrollbar-thumb { background: var(--color-hairline); border-radius: var(--radius-pill); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-hairline-input); }
