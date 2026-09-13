@@ -55,9 +55,6 @@ export default function ProjectMap({ projects, selectedProjectId }: ProjectMapPr
     : [28.47, 77.50];
   const zoomLevel = selectedProj ? 15 : 12;
 
-  const rawApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
-  const apiBase = rawApiUrl.replace("localhost", "127.0.0.1");
-
   // ─── Shared pill button style ────────────────────────────────────
   const pillBase: React.CSSProperties = {
     padding: "5px 12px",
@@ -193,32 +190,49 @@ export default function ProjectMap({ projects, selectedProjectId }: ProjectMapPr
                   </div>
 
                   {/* Satellite image */}
-                  <div
-                    className="relative overflow-hidden"
-                    style={{
-                      borderRadius: "var(--radius-md)",
-                      border: "1px solid var(--color-hairline)",
-                      background: "var(--color-canvas-soft)",
-                      aspectRatio: "16/9",
-                      marginBottom: 10,
-                    }}
-                  >
-                    <img
-                      src={resolveAssetUrl(p.latest_image_url) || `${apiBase}/demo-assets/project_${p.id}_after.png`}
-                      alt={p.name}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    />
-                    <span
+                  {p.latest_image_url ? (
+                    <div
+                      className="relative overflow-hidden"
                       style={{
-                        position: "absolute", bottom: 5, right: 5,
-                        background: "rgba(13,37,61,0.75)",
-                        color: "#fff", fontSize: 9, padding: "2px 6px",
-                        borderRadius: "var(--radius-xs)", fontFeatureSettings: '"tnum"',
+                        borderRadius: "var(--radius-md)",
+                        border: "1px solid var(--color-hairline)",
+                        background: "var(--color-canvas-soft)",
+                        aspectRatio: "16/9",
+                        marginBottom: 10,
                       }}
                     >
-                      {p.latest_image_url ? "Latest observation" : "Demo image"}
-                    </span>
-                  </div>
+                      <img
+                        src={resolveAssetUrl(p.latest_image_url)}
+                        alt={p.name}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      />
+                      <span
+                        style={{
+                          position: "absolute", bottom: 5, right: 5,
+                          background: "rgba(13,37,61,0.75)",
+                          color: "#fff", fontSize: 9, padding: "2px 6px",
+                          borderRadius: "var(--radius-xs)", fontFeatureSettings: '"tnum"',
+                        }}
+                      >
+                        Latest observation
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      className="flex items-center justify-center"
+                      style={{
+                        borderRadius: "var(--radius-md)",
+                        border: "1px dashed var(--color-hairline)",
+                        background: "var(--color-canvas-soft)",
+                        aspectRatio: "16/9",
+                        marginBottom: 10,
+                        fontSize: 11,
+                        color: "var(--color-ink-mute)",
+                      }}
+                    >
+                      No imagery yet
+                    </div>
+                  )}
 
                   {/* CTA */}
                   <button

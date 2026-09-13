@@ -22,6 +22,6 @@ fi
 
 echo ""
 echo "Setup complete. Start the backend with: ./run.sh"
-echo "(on first start: 6 demo projects, 4 real legacy projects with real manual"
-echo " evidence, and 2 demo accounts are all seeded automatically — nothing to"
-echo " prepare, upload, or configure by hand)"
+echo "(on first start: 4 real legacy projects with real manual evidence and 2"
+echo " demo accounts are seeded automatically — nothing to prepare, upload, or"
+echo " configure by hand)"

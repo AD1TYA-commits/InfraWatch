@@ -68,10 +68,6 @@ manually-photographed before/after evidence instead, once a contractor
 uploads it: the exact same PlanAura model, called via satellite-service's
 `/model/detect-images` endpoint, not a different or approximate one.
 
-Bundled `[DEMO]` projects use pre-shipped image pairs and a local
-OpenCV-based fallback path so the dashboard has something to show with zero
-network dependency.
-
 ## 4. The three codebases
 
 - **`backend/`** (this repo) — FastAPI: auth, the project registry,
@@ -91,10 +87,15 @@ network dependency.
 | MPLADS works CSV (~1,000 rows, on disk) | Real | Government MPLADS/MoSPI-sourced records (`backend/data/processed/mplads_normalized.csv`) — a sanction/works registry, not a live construction tracker. Only 3 of the 1,000 rows carry a government-verified GPS coordinate and a real progress figure at all; the other 997 are kept as reference data on disk, not imported as registry projects (see below) |
 | 4 legacy projects' before/after photos | Real | 3 (Goa: joggers park, crematorium; Nagaland: forest colony pond) are exactly the 3 MPLADS CSV rows with a real coordinate — used for map placement, but scored via the manually-supplied high-resolution photos rather than a 10m Sentinel-2 pass since that's what actually shows the change clearly for such small-scale works; 1 (Tamil Nadu, Udayarpalayam) is a standalone real example with no coordinate at all, not present in the CSV |
 | PMGSY facility-location sample (24 rows) | Real locations, synthetic progress | Real facility coordinates; `reported_progress` is a synthetic placeholder since these are existing facilities, not in-progress works with a genuine self-report |
-| 6 `[DEMO]` projects | Fully synthetic | Fabricated coordinates and bundled demo image pairs, for offline demos |
-| Sentinel-2 imagery (real mode) | Real | Actual 10m-band Sentinel-2 scenes fetched live via satellite-service |
+| Sentinel-2 imagery | Real | Actual 10m-band Sentinel-2 scenes fetched live via satellite-service for every coordinate-based project — no offline/bundled-image fallback |
 | PlanAura change-detection model | Real | Pretrained ResNet18 feature-diff model, deterministic (same inputs → same output), not a placeholder heuristic |
 | Risk engine scoring | Real, deterministic | No machine learning and no per-project hardcoding — see `app/risk_engine.py` and `docs/MERGE-NOTES.md` |
+
+There is no synthetic/fabricated project data anywhere in the registry —
+an earlier iteration had 6 fully-invented `[DEMO]` projects (fake
+coordinates, a flat pasted-on shape composited onto a real satellite tile to
+simulate "construction"); these were removed once real data covered the
+"something to show immediately" need. See `docs/MERGE-NOTES.md`.
 
 ## 6. Roles
 
@@ -113,7 +114,7 @@ Full detail: [06-auth-and-roles.md](06-auth-and-roles.md).
 ## 7. Current status (be honest about this in a demo)
 
 - Full-stack auth, deterministic risk scoring, and the manual-evidence
-  workflow are implemented and tested (26 backend tests).
+  workflow are implemented and tested (22 backend tests).
 - The risk engine's weights (`app/config.py`'s `RISK_WEIGHTS`) and the
   LOW/MEDIUM/HIGH/CRITICAL score thresholds (`app/risk_engine.py`'s
   `_classify()`) are reasoned defaults, not calibrated against a labeled

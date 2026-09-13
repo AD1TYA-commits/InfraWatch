@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_auth_risk.db"
-os.environ["SATELLITE_MODE"] = "demo"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -151,14 +150,33 @@ def test_satellite_discrepancy_no_hardcoded_project_ids():
     assert "project_id" not in sig.parameters
 
     high_discrepancy = risk_engine.compute_satellite_discrepancy_risk(
-        reported_progress=90.0, observed_change=5.0, evidence_type="real_satellite",
+        reported_progress=90.0, observed_change=5.0, evidence_type="satellite",
     )
     assert high_discrepancy.risk_score > 60.0
 
     concordant = risk_engine.compute_satellite_discrepancy_risk(
-        reported_progress=50.0, observed_change=48.0, evidence_type="real_satellite",
+        reported_progress=50.0, observed_change=48.0, evidence_type="satellite",
     )
     assert concordant.risk_score < 10.0
+
+
+def test_satellite_discrepancy_confidence_not_capped_for_real_evidence():
+    """Regression test for a real bug: this used to check evidence_type ==
+    "real_satellite", a value the actual caller (Project.evidence_source)
+    never sets — it always passes "satellite" — so every risk assessment,
+    even genuinely real-satellite-sourced ones, silently had its confidence
+    capped at 0.45 as if it were low-quality evidence."""
+    real_satellite = risk_engine.compute_satellite_discrepancy_risk(
+        reported_progress=80.0, observed_change=75.0, satellite_confidence=0.9, evidence_type="satellite",
+    )
+    assert real_satellite.is_real_satellite is True
+    assert real_satellite.confidence > 0.45
+
+    manual_upload = risk_engine.compute_satellite_discrepancy_risk(
+        reported_progress=80.0, observed_change=75.0, satellite_confidence=0.9, evidence_type="manual_upload",
+    )
+    assert manual_upload.is_real_satellite is False
+    assert manual_upload.confidence <= 0.45
 
 
 def test_composite_risk_never_exceeds_100_and_has_no_id_overrides():
@@ -166,7 +184,7 @@ def test_composite_risk_never_exceeds_100_and_has_no_id_overrides():
         project_id="999999",  # arbitrary — proves no special-casing by ID
         sanctioned_amount=1_000_000, actual_expenditure=5_000_000,
         start_date=datetime(2018, 1, 1), expected_end_date=datetime(2019, 1, 1),
-        reported_progress=95.0, observed_change=2.0, evidence_type="real_satellite",
+        reported_progress=95.0, observed_change=2.0, evidence_type="satellite",
     )
     assert 0.0 <= result.risk_score <= 100.0
     assert result.risk_level in ("LOW", "MEDIUM", "HIGH", "CRITICAL")

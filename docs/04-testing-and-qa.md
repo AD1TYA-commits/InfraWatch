@@ -4,14 +4,14 @@
 
 ### InfraWatch backend (`backend/tests/`, pytest)
 
-26 tests across four files. Run with:
+23 tests across three files. Run with:
 
 ```bash
 cd backend
 pytest tests/ -v
 ```
 
-**`test_auth_and_risk.py` (11 tests)** — authentication and the risk engine:
+**`test_auth_and_risk.py` (12 tests)** — authentication and the risk engine:
 
 - Registration + login + `/api/auth/me` round trip.
 - Wrong password is rejected (401); duplicate email registration is
@@ -35,22 +35,23 @@ pytest tests/ -v
   ID-keyed special-casing anywhere in the composite path either).
 - `GET /api/projects/{id}/risk` returns all 4 weighted factors with scores,
   weights, and explanations.
+- **Real-satellite evidence isn't wrongly confidence-capped** — regression
+  test for a bug where the confidence-capping check compared against a
+  value (`"real_satellite"`) that `Project.evidence_source` never actually
+  set (it's always `"satellite"`), so every risk assessment — even genuinely
+  real Sentinel-2-screened ones — silently had its confidence capped at 0.45
+  with a self-contradictory "not a real satellite pass" explanation.
 
-**`test_api.py` (9 tests)** — core project API and the demo-mode fallback
-imagery pipeline:
+**`test_api.py` (9 tests)** — core project API, exercised against the real
+pipeline with satellite-service's HTTP call mocked:
 
 - Health check reports `database: connected`.
 - `GET /api/projects` with no token is rejected (401) — the registry has no
   anonymous read access.
 - Project list/detail endpoints return the expected shape and fields (once
   authenticated).
-- `EsriProvider` fallback imagery source still works (legacy demo-mode
-  path).
-- `ChangeDetector` finds a synthetic change region and `ChangeGeoProcessor`
-  converts it to a valid GeoJSON `FeatureCollection` in EPSG:4326.
-- `SatelliteChangeAnalyzer` degrades to a clear "no change detected" result
-  when given no crops, rather than erroring.
-- The full `/analyze` workflow returns scene metadata and a GeoJSON overlay.
+- The full `/analyze` workflow (mocking `satellite_service_run_pipeline`)
+  returns scene metadata and a GeoJSON overlay.
 - Contractor-authenticated project creation (`POST /api/projects`) succeeds
   and the new project immediately appears in the registry list.
 
@@ -67,19 +68,8 @@ layer with the real satellite-service, all mocked (no network needed):
 - On a satellite-service failure, the project degrades gracefully to a
   `watch`-severity anomaly explaining why, instead of the request crashing.
 - `list_projects()`'s `latest_image_url` field resolves correctly for both a
-  bundled demo asset (`/demo-assets/...`) and a real satellite-service
-  result (absolute URL at the satellite-service host).
-
-**`test_demo_routing.py` (1 test)** — regression test for a real bug found
-during a data-cleanup pass: `execute_pipeline()` used to decide "is this a
-bundled demo project" purely by whether a same-numbered demo asset file
-happened to exist on disk, not by the project's actual `is_demo` flag. A
-real project landing on database ID 1-6 by coincidence would be silently
-misrouted into the demo pipeline (and crash if it had no coordinates, since
-that path assumes lat/lon always exist). This test deliberately creates a
-real project as the first row in a fresh database (forcing ID 1, colliding
-with a demo asset filename) and confirms it's still analyzed via its real
-evidence pipeline.
+  manually-uploaded evidence photo (`/manual-evidence/...`) and a real
+  satellite-service result (absolute URL at the satellite-service host).
 
 ### satellite-service (`satellite-service/tests/`, pytest)
 
@@ -136,10 +126,13 @@ evidence-upload flow:
 
 **Analyst dashboard**
 - [ ] KPI cards match `/api/projects/kpi-summary`, not just the loaded page.
-- [ ] Search, priority filter, sector filter, and registry-source filter
-      each narrow the table correctly and can be combined.
+- [ ] Search, priority filter, sector filter, registry-source filter, and
+      evidence-type filter each narrow the table correctly and can be
+      combined.
 - [ ] Pagination's Next/Previous buttons work and disable at the boundaries.
 - [ ] Map markers appear only for projects with a GPS coordinate.
+- [ ] Every registry row shows the correct evidence-type badge (🛰️
+      Satellite / 📷 Manual Upload / — Awaiting Evidence).
 
 **Project detail**
 - [ ] "Run Analysis Again" on a satellite-screened project produces a
@@ -160,16 +153,18 @@ evidence-upload flow:
       (not a constant/placeholder value), and that re-uploading against a
       project that already has a coordinate is rejected with a clear error.
 
-**Real mode (if internet is available)**
-- [ ] `./start-all.sh real`; confirm satellite-service's health check and a
-      live `/pipeline/run` call both succeed for a real-coordinate project.
+**Live satellite-service (needs internet)**
+- [ ] `./start-all.sh`; confirm satellite-service's health check and a live
+      `/pipeline/run` call both succeed for a real-coordinate project.
 
 ## Known issues log
 
 - satellite-service's confidence thresholds are hand-tuned on manual checks,
   not validated against a labeled ground-truth dataset — treat all outputs
   (both here and in InfraWatch's risk engine) as screening signal.
-- The legacy in-process demo-mode pipeline (`satellite_provider.py`,
-  `change_detector.py`, `change_analyzer.py`, `geo_processor.py`) only runs
-  for bundled `[DEMO]` image pairs now; it is kept for the offline demo
-  path, not as a second production pipeline.
+- There is no offline/bundled-image fallback mode — satellite-service must
+  be reachable, and internet access is required, for any coordinate-based
+  project's analysis. An earlier iteration had a legacy in-process pipeline
+  and 6 fully-synthetic `[DEMO]` projects for offline use; both were removed
+  once real data covered the "something to show immediately" need — see
+  [MERGE-NOTES.md](MERGE-NOTES.md).

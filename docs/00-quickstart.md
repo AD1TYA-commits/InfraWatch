@@ -2,9 +2,10 @@
 
 ## Before you start
 
-You need `python3` (3.10+), `node` (18+) and `npm` installed. Nothing else —
-no database server to install, no dataset to download by hand, no account to
-create first.
+You need `python3` (3.10+), `node` (18+) and `npm` installed, plus internet
+access — every project's analysis is a real Sentinel-2 fetch, there's no
+offline/bundled-image mode. No database server to install, no dataset to
+download by hand, no account to create first.
 
 ## Folder layout — this part matters
 
@@ -25,8 +26,7 @@ clear error telling you what to fix, instead of a confusing error mid-setup.
 From inside `InfraWatch/`:
 
 ```bash
-./start-all.sh          # demo mode — bundled sample images, works offline
-./start-all.sh real     # real mode — live Sentinel-2 imagery, needs internet
+./start-all.sh
 ```
 
 First run does full setup automatically: creates Python virtualenvs for the
@@ -38,7 +38,6 @@ starts in seconds.
 On first boot, the backend automatically seeds itself — nothing to prepare
 by hand:
 
-- 6 synthetic `[DEMO]` projects with bundled before/after image pairs
 - 4 real legacy projects with real manually-photographed before/after
   evidence, sourced from a real ~1,000-row MPLADS works CSV
   (`backend/data/processed/mplads_normalized.csv`) — only the 3 rows in that
@@ -52,8 +51,8 @@ This seeding is guarded so it only ever runs against a genuinely empty
 database — restarting the backend, or re-running `docker-compose up` against
 an existing volume, never re-seeds or wipes real data.
 
-In `real` mode only, a 24-project real PMGSY facility-location sample also
-imports in the background on first run (needs internet, ~5-10 minutes) — see
+A 24-project real PMGSY facility-location sample also imports itself in the
+background on first run (needs internet, ~5-10 minutes) — see
 `/tmp/infrawatch-logs/pmgsy-import.log`.
 
 Once it's up:
@@ -79,24 +78,21 @@ Sign in as the analyst to browse the full registry, or as the contractor to
 register a new project or upload evidence. You can also register your own
 account from `/register` — pick either role.
 
-## Two modes — which one do I want?
+## How analysis actually works
 
-- **demo** (default): bundled sample image pairs, zero network calls for
-  imagery, always reliable — the right choice for a first look or an offline
-  demo.
-- **real**: `SATELLITE_MODE=real` delegates every non-demo project's
-  analysis to the satellite-service microservice, which fetches actual
-  Sentinel-2 10m band imagery via a public STAC catalog and runs the real
-  PlanAura change-detection model. Needs internet access; first analysis per
-  project takes roughly 10-30 seconds.
-
-`start-all.sh` flips this by editing `backend/.env`'s `SATELLITE_MODE` line
-for you — no manual `.env` editing needed either way.
+Every coordinate-based project is analyzed by satellite-service, which
+fetches actual Sentinel-2 10m band imagery via a public STAC catalog and
+runs the real PlanAura change-detection model. This needs internet access;
+first analysis per project takes roughly 10-30 seconds. Projects with no
+GPS coordinate (real bulk-imported government records commonly have none)
+are instead screened from contractor-uploaded before/after photos, scored
+by that same real model via a different endpoint — see
+[01-project-overview.md](01-project-overview.md) for the full picture.
 
 ## Something went wrong — now what?
 
 Logs for all three services are written under `/tmp/infrawatch-logs/`
-(`backend.log`, `frontend.log`, `satellite-service.log`, and in real mode
+(`backend.log`, `frontend.log`, `satellite-service.log`, and
 `pmgsy-import.log`). Check those first.
 
 Common issues:
@@ -114,8 +110,8 @@ Common issues:
 
 - Don't reuse the demo account passwords, or `JWT_SECRET_KEY`'s
   development default, anywhere reachable outside your own machine.
-- Don't run `real` mode expecting instant results — a live Sentinel-2 fetch
-  and model run takes real seconds, not milliseconds.
+- Don't expect instant results — a live Sentinel-2 fetch and model run
+  takes real seconds, not milliseconds.
 
 ## I want to understand what I'm running, not just start it
 

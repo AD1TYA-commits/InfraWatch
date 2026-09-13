@@ -22,30 +22,27 @@
                                           └──────────────────────┘
 ```
 
-The backend never queries Sentinel-2 or runs the CNN model itself for a
-real (non-demo) project — it delegates that entirely to satellite-service
-over HTTP (`app/satellite_service_client.py`, `app/manual_evidence_client.py`)
-and stores only the returned facts. There is no shared code or database
-between the two services.
+The backend never queries Sentinel-2 or runs the CNN model itself — it
+delegates that entirely to satellite-service over HTTP
+(`app/satellite_service_client.py`, `app/manual_evidence_client.py`) and
+stores only the returned facts. There is no shared code or database between
+the two services, and no offline/bundled-image fallback mode — every
+coordinate-based project's analysis is a real Sentinel-2 fetch.
 
 ## Request flow for "analyze a project"
 
 `POST /api/projects/{id}/analyze` → `execute_pipeline()` in
 `app/api/projects.py` branches on the project's state:
 
-1. **Bundled `[DEMO]` image pair exists and `SATELLITE_MODE != "real"`** →
-   runs the legacy in-process pipeline (`satellite_provider.py` →
-   `change_detector.py` → `change_crops.py` → `change_analyzer.py` →
-   `geo_processor.py`), all local, no external calls.
-2. **`evidence_source == "manual_upload"`** → `_execute_via_manual_evidence()`
+1. **`evidence_source == "manual_upload"`** → `_execute_via_manual_evidence()`
    re-runs detection on the two most recently uploaded photos via
    satellite-service's `/model/detect-images` (see
    `app/manual_evidence_client.py`) — the same real model as the satellite
    path, applied to manually-sourced images instead of a georeferenced pass.
-3. **Has a real lat/lon** → `_execute_via_satellite_service()` calls
+2. **Has a real lat/lon** → `_execute_via_satellite_service()` calls
    satellite-service's `/pipeline/run` (see `app/satellite_service_client.py`)
    — real Sentinel-2 fetch, real model, real narration.
-4. **Neither a coordinate nor manual evidence** → `_unavailable_result()`
+3. **Neither a coordinate nor manual evidence** → `_unavailable_result()`
    records an honest `watch`-severity "evidence unavailable" anomaly. This
    is the common, expected state for most bulk-imported real MPLADS rows,
    not an error.
@@ -78,10 +75,9 @@ required.
 | POST | `/api/projects/{id}/analyze` | any authenticated user | Run (or re-run) the appropriate evidence pipeline |
 | POST | `/api/projects/{id}/ingest` | any authenticated user | Force a fresh imagery/evidence fetch, then analyze |
 
-Static file mounts: `/demo-assets/*` (bundled demo image pairs) and
-`/manual-evidence/*` (contractor-uploaded and seeded real evidence photos) —
-these are unauthenticated, since they only ever serve non-sensitive image
-files whose paths are opaque IDs, not the registry data itself.
+Static file mount: `/manual-evidence/*` (contractor-uploaded and seeded real
+evidence photos) — unauthenticated, since it only ever serves non-sensitive
+image files whose paths are opaque IDs, not the registry data itself.
 
 Every `/api/projects...` route requires being logged in as *some* account
 (analyst or contractor) — there is no anonymous read access to the registry,
@@ -124,7 +120,8 @@ Core tables (`backend/app/models/models.py`):
 - **`Project`** — `name`, `project_type`, `description`, `latitude`/
   `longitude` (**nullable on purpose** — see below), `geometry_wkt`,
   `start_date`/`expected_end_date`, `approved_cost`, `reported_progress`,
-  `status`, `is_demo`, `evidence_source`
+  `status`, `is_demo` (vestigial — nothing sets this to `1` any more; kept
+  rather than migrated out since it's inert, not misleading), `evidence_source`
   (`"satellite"` / `"manual_upload"` / `"unavailable"`), real-government
   metadata (`work_id`, `mp_name`, `state_name`, `constituency_name`,
   `district_name`, `implementing_agency`, `sanctioned_amount`,
@@ -133,9 +130,8 @@ Core tables (`backend/app/models/models.py`):
 - **`Milestone`**, **`FinancialRecord`**, **`ProgressReport`** — schedule and
   disbursement history.
 - **`SatelliteObservation`** — one row per before/after image
-  (`source` is `"demo"`, `"sentinel-2-l2a (satellite-service)"`,
-  `"manual-upload"`, etc.; `image_reference` is a path/asset id, never a raw
-  raster stored in the DB).
+  (`source` is `"sentinel-2-l2a (satellite-service)"` or `"manual-upload"`;
+  `image_reference` is a path/asset id, never a raw raster stored in the DB).
 - **`AIResult`** — the model's output for one observation pair (`changed_area`,
   `observed_progress`, `confidence`, `model_version`).
 - **`Anomaly`** — one flagged signal (`type`, `score`, `severity`,
@@ -164,10 +160,16 @@ via a second endpoint (`/model/detect-images`) that accepts two uploaded
 images directly instead of fetching them from Sentinel-2. The resulting
 `observable_change_percent` is real model output — not a placeholder or a
 fabricated number — even though the source photos aren't a georeferenced
-satellite pass. The risk engine's `evidence_type` field
-(`"real_satellite"` / `"manual_upload"` / `"legacy_demo"` / `"unavailable"`)
-tracks this distinction and caps confidence accordingly (manual-upload
-evidence never claims satellite-grade confidence — see below).
+satellite pass. The risk engine's `evidence_type` field (the same
+`"satellite"` / `"manual_upload"` / `"unavailable"` vocabulary as
+`Project.evidence_source`) tracks this distinction and caps confidence
+accordingly (manual-upload evidence never claims satellite-grade confidence
+— see below). This field's expected value used to be misspelled as
+`"real_satellite"` in `risk_engine.py`, a value the actual caller never set
+— every risk assessment's confidence was silently capped at 0.45 regardless
+of evidence quality until this was fixed to match `Project.evidence_source`'s
+real vocabulary; `test_satellite_discrepancy_confidence_not_capped_for_real_evidence`
+is the regression test.
 
 ## Risk engine: formula and weights
 
@@ -225,15 +227,18 @@ matters.
   (`app/main.py` checks `Project` count before seeding) — a container
   restart or a `docker compose up` against an existing volume can never
   silently wipe or duplicate real imported data.
-- **`execute_pipeline()` gates the demo-image path on `project.is_demo`,
-  not on file existence alone** — bundled demo assets are named only by
-  database ID (`project_1_before.png` ... `project_6_before.png`), so a
-  filename-existence check by itself would silently misroute any *real*
-  project that happened to land on ID 1-6 into the demo pipeline (and crash
-  outright if it had no coordinates, since that path assumes lat/lon always
-  exist). This was a real bug found during a later data-cleanup pass, fixed
-  by checking `is_demo` first; `tests/test_demo_routing.py` is a permanent
-  regression test that deliberately forces this exact ID collision.
+- **No offline/bundled-image fallback mode** — an earlier iteration had a
+  legacy in-process CV pipeline plus 6 fully-synthetic `[DEMO]` projects
+  (fake coordinates, a flat pasted-on shape composited onto a real satellite
+  tile) so the dashboard had something to show with zero network access.
+  Both were removed entirely: the synthetic projects looked exactly like
+  what they were — a cardboard cutout pasted onto a real photo — which
+  undermined the tool's own credibility, and real data (the 4 manual-evidence
+  projects, the PMGSY sample) already covers the "something to show
+  immediately" need without fabricating anything. `execute_pipeline()` now
+  has exactly two real branches (manual-evidence, satellite) plus the honest
+  "unavailable" terminal state — no demo branch, no `SATELLITE_MODE` toggle.
+  See [MERGE-NOTES.md](MERGE-NOTES.md).
 - **The 1,000-row MPLADS CSV is reference data on disk, not a bulk import
   source** — 997 of its 1,000 rows have no GPS coordinate and no real
   progress figure (it's a sanction/works registry, not a live tracker), so

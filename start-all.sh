@@ -4,36 +4,30 @@
 #   satellite-service + InfraWatch backend + InfraWatch frontend
 #
 # Usage:
-#   ./start-all.sh          -> demo mode (bundled sample images, no internet
-#                               needed, always works — the safe default)
-#   ./start-all.sh real     -> real mode (live Sentinel-2 imagery via
-#                               satellite-service — needs internet access)
+#   ./start-all.sh
 #
 # First run does full setup automatically (venvs, pip/npm installs, .env
 # files) — this can take a few minutes. Every run after that starts in
-# seconds. On first boot the backend automatically seeds: 6 offline demo
-# projects, the real ~1,000-row MPLADS registry (with 4 real manually-
-# photographed legacy projects), and one demo analyst + one demo contractor
-# account — there is nothing to download, prepare, or configure by hand.
-# In 'real' mode, the 24-project real PMGSY sample also imports in the
+# seconds. On first boot the backend automatically seeds: 4 real legacy
+# projects with real manually-photographed evidence, and one demo analyst +
+# one demo contractor account — there is nothing to download, prepare, or
+# configure by hand. The 24-project real PMGSY sample also imports in the
 # background on first run (needs internet; see the log path printed below).
+#
+# Needs internet access and satellite-service running (this script starts
+# it for you) — every coordinate-based project is screened via a real
+# Sentinel-2 fetch, there is no offline/bundled-image fallback mode.
 #
 # Press Ctrl+C to stop all three services cleanly.
 # ─────────────────────────────────────────────────────────────────────────
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SATELLITE_DIR="$(cd "$SCRIPT_DIR/../satellite-service" 2>/dev/null && pwd || true)"
-MODE="${1:-demo}"
 
 if [ -z "$SATELLITE_DIR" ]; then
   echo "ERROR: could not find ../satellite-service next to this InfraWatch folder."
   echo "InfraWatch and satellite-service must be sibling folders (same parent directory)."
   echo "See docs/03-developer-setup.md for the expected layout."
-  exit 1
-fi
-
-if [ "$MODE" != "demo" ] && [ "$MODE" != "real" ]; then
-  echo "Usage: ./start-all.sh [demo|real]"
   exit 1
 fi
 
@@ -50,7 +44,7 @@ if [ ${#missing[@]} -gt 0 ]; then
 fi
 
 echo "=================================================================="
-echo " InfraWatch — starting in '$MODE' mode"
+echo " InfraWatch — starting"
 echo "=================================================================="
 echo ""
 
@@ -68,14 +62,6 @@ fi
 if [ ! -d "$SCRIPT_DIR/frontend/node_modules" ]; then
   echo "==> First-time setup: InfraWatch frontend (this can take a minute or two)..."
   (cd "$SCRIPT_DIR/frontend" && bash setup.sh)
-fi
-
-# ── Apply the requested satellite mode without hand-editing .env ─────────
-BACKEND_ENV="$SCRIPT_DIR/backend/.env"
-if grep -q "^SATELLITE_MODE=" "$BACKEND_ENV" 2>/dev/null; then
-  sed -i.bak "s/^SATELLITE_MODE=.*/SATELLITE_MODE=$MODE/" "$BACKEND_ENV" && rm -f "$BACKEND_ENV.bak"
-else
-  echo "SATELLITE_MODE=$MODE" >> "$BACKEND_ENV"
 fi
 
 # ── Start all three, cleaning up on Ctrl+C ────────────────────────────────
@@ -128,10 +114,9 @@ PIDS+=($!)
 
 # ── One-time real-satellite import for the 24-project PMGSY sample, in the
 # background so it never blocks the "services are up" message below. Only
-# in 'real' mode (needs live Sentinel-2 imagery + internet) and only once —
-# guarded by a marker file, not by re-checking the database, so it still
-# skips correctly even if this exact run's import partially failed.
-if [ "$MODE" = "real" ] && [ ! -f "$SCRIPT_DIR/backend/.pmgsy-imported" ]; then
+# once — guarded by a marker file, not by re-checking the database, so it
+# still skips correctly even if this exact run's import partially failed.
+if [ ! -f "$SCRIPT_DIR/backend/.pmgsy-imported" ]; then
   (
     cd "$SCRIPT_DIR/backend" || exit 0
     source .venv/bin/activate
@@ -147,15 +132,11 @@ fi
 
 echo ""
 echo "=================================================================="
-if [ "$MODE" = "demo" ]; then
-  echo " Mode: DEMO — bundled sample images, works offline, always reliable."
-  echo " (Run './start-all.sh real' instead for live Sentinel-2 imagery.)"
-else
-  echo " Mode: REAL — live Sentinel-2 imagery via satellite-service."
-  echo " Needs internet access. First analysis per project takes 10-30s."
-  echo " The 24 real PMGSY sample projects are importing in the background"
-  echo " on first run (~5-10 min) — see /tmp/infrawatch-logs/pmgsy-import.log."
-fi
+echo " Needs internet access — every coordinate-based project is screened"
+echo " via a real Sentinel-2 fetch through satellite-service. First"
+echo " analysis per project takes 10-30s."
+echo " The 24 real PMGSY sample projects are importing in the background"
+echo " on first run (~5-10 min) — see /tmp/infrawatch-logs/pmgsy-import.log."
 echo "=================================================================="
 echo ""
 echo " Give it about 30-60 seconds on first run to finish starting up,"

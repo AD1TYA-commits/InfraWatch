@@ -21,14 +21,16 @@ the actual Sentinel-2 imagery fetch and pretrained-model change detection.
 ```
 
 That's the entire setup — no manual database, dataset, or account step. On
-first boot the backend automatically seeds 6 offline demo projects, 4 real
-legacy projects with real manually-photographed before/after evidence (drawn
-from a real ~1,000-row MPLADS registry CSV — see "What's real vs. synthetic"
-below for why only these 4 become registry entries), and one demo analyst +
-one demo contractor account. First run takes a few minutes (installs
-everything); every run after that takes seconds. See
-[docs/00-quickstart.md](docs/00-quickstart.md) if anything about that isn't
-obvious.
+first boot the backend automatically seeds 4 real legacy projects with real
+manually-photographed before/after evidence (drawn from a real ~1,000-row
+MPLADS registry CSV — see "What's real vs. synthetic" below for why only
+these 4 become registry entries), and one demo analyst + one demo contractor
+account; the 24-project real PMGSY sample imports itself in the background
+on first run. First run takes a few minutes (installs everything); every
+run after that takes seconds. Needs internet access — every project is
+screened via a real Sentinel-2 fetch, there's no offline/bundled-image mode.
+See [docs/00-quickstart.md](docs/00-quickstart.md) if anything about that
+isn't obvious.
 
 **New to this project? Start in
 [`docs/01-project-overview.md`](docs/01-project-overview.md)** instead of
@@ -94,10 +96,13 @@ for the full request-flow breakdown and API tables.
   data that simply doesn't carry that figure. The CSV stays in the repo as
   real source data for future geolocation work; it's deliberately not turned
   into ~1,000 unscreenable dashboard rows. See [docs/MERGE-NOTES.md](docs/MERGE-NOTES.md).
-- **Synthetic**: 6 bundled `[DEMO]` projects with fabricated coordinates and
-  bundled demo image pairs, used so the dashboard has something to show with
-  zero network access. Clearly labeled `is_demo=1` and named with a `[DEMO]`
-  prefix.
+
+There is no synthetic/fabricated project data anywhere in the registry —
+an earlier iteration had 6 fully-invented `[DEMO]` projects (fake
+coordinates, a flat pasted-on shape composited onto a real satellite tile
+to simulate "construction"); these were removed entirely once real data
+covered the same "something to show immediately" need, since a screening
+tool showing fabricated before/after evidence undermined its own credibility.
 
 ## Auth and roles
 
@@ -140,7 +145,6 @@ detail: [docs/02-user-guide.md](docs/02-user-guide.md#look-and-feel).
 
 - Frontend: Next.js 14, TypeScript, Tailwind CSS, Leaflet, jsPDF
 - Backend: Python, FastAPI, SQLAlchemy, Pydantic, python-jose, passlib/bcrypt
-- Image processing (demo-mode fallback path): OpenCV, Rasterio, NumPy
 - satellite-service: rasterio (real Sentinel-2 10m bands via STAC), a
   pretrained ResNet18 feature-diff model, Gemini narration
 - Database: PostgreSQL + PostGIS for deployment; SQLite for local dev (the
@@ -153,8 +157,7 @@ detail: [docs/02-user-guide.md](docs/02-user-guide.md#look-and-feel).
 `satellite-service` cloned as a sibling folder next to this repo):
 
 ```bash
-./start-all.sh          # demo mode: bundled images, no internet needed
-./start-all.sh real     # real mode: live Sentinel-2 imagery via satellite-service
+./start-all.sh
 ```
 
 **Manual, piece by piece** — backend:
@@ -174,9 +177,9 @@ cd frontend
 ./run.sh     # or: npm run dev
 ```
 
-For real Sentinel-2 imagery (instead of bundled demo images), also run
-satellite-service (`./setup.sh && uvicorn app:app --reload --port 8001` in
-that repo) and set `SATELLITE_MODE=real` in `backend/.env`.
+Also run satellite-service (`./setup.sh && uvicorn app:app --reload --port 8001`
+in that repo) — every coordinate-based project needs it, and needs internet
+access, for a fresh Sentinel-2 fetch.
 
 Also available: Docker Compose (`docker compose up --build` from this repo
 root) — see [docs/03-developer-setup.md](docs/03-developer-setup.md).
@@ -192,8 +195,7 @@ the ones most worth knowing about:
 | Variable | Purpose | Default |
 |---|---|---|
 | `DATABASE_URL` | Database connection | `sqlite:///./infrawatch.db` |
-| `SATELLITE_MODE` | `demo` for bundled images or `real` to delegate to satellite-service | `demo` |
-| `SATELLITE_SERVICE_URL` | Where satellite-service is reachable (`real` mode only) | `http://localhost:8001` |
+| `SATELLITE_SERVICE_URL` | Where satellite-service is reachable — every coordinate-based project is analyzed by calling out to it | `http://localhost:8001` |
 | `JWT_SECRET_KEY` | Signs auth tokens — **must** be overridden for any deployment beyond one developer's machine | dev-only insecure default |
 | `GEMINI_API_KEY` | Enables Gemini narration in satellite-service (falls back to a template otherwise) | empty |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000` |
@@ -233,16 +235,12 @@ cd backend
 pytest tests/ -v
 ```
 
-26 tests across 4 files: authentication (register/login/role enforcement,
+23 tests across 3 files: authentication (register/login/role enforcement,
 password hashing), the risk engine (deterministic scoring, and an explicit
 test that its satellite-discrepancy function takes no `project_id` and so
-cannot be special-cased per project), project CRUD, the satellite-service
+cannot be special-cased per project), project CRUD, and the satellite-service
 integration layer (HTTP client, response mapping, graceful degradation —
-mocked, no network needed), and a dedicated regression test for a real bug
-found during development (a real project landing on a database ID that
-coincidentally matched a bundled demo-asset filename used to get silently
-misrouted into the demo pipeline — see
-[docs/05-architecture-and-api-reference.md](docs/05-architecture-and-api-reference.md)).
+mocked, no network needed).
 
 The frontend has no automated test runner configured yet; `npx tsc --noEmit`
 in `frontend/` is used as a type-correctness check. See
@@ -251,9 +249,9 @@ including the manual QA checklist.
 
 ## Limitations
 
-- Bundled demo images are synthetic assets, not evidence from a live
-  government system — they exist purely so the dashboard has something to
-  show offline.
+- Needs internet access and satellite-service running — there is no offline
+  or bundled-image fallback mode. Every coordinate-based project's analysis
+  is a real Sentinel-2 fetch.
 - Pixel/feature differences can be caused by lighting, clouds, shadows,
   seasonal vegetation, or image alignment — every HIGH/CRITICAL result
   requires field verification, not automatic action.

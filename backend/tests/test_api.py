@@ -1,25 +1,19 @@
 import os
 import sys
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # Use an isolated, disposable SQLite DB for tests so we never touch a dev DB.
 os.environ["DATABASE_URL"] = "sqlite:///./test_infrawatch.db"
-os.environ["SATELLITE_MODE"] = "demo"
 
 import pytest
-from datetime import datetime, timezone
-import numpy as np
-from rasterio.transform import from_bounds
+from datetime import datetime
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.database import Base, engine, SessionLocal
 from app.models.models import Project, SatelliteObservation
-from app.satellite_provider import EsriProvider, SatelliteScene
-from app.change_detector import ChangeDetector
-from app.geo_processor import ChangeGeoProcessor
-from app.change_analyzer import SatelliteChangeAnalyzer
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -29,10 +23,10 @@ def setup_db():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     db.add(Project(
-        name="[DEMO] Test Project", project_type="Roads", description="test",
+        name="[TEST] Test Project", project_type="Roads", description="test",
         latitude=28.5, longitude=77.5, geometry_wkt="POINT(77.5 28.5)",
         start_date=datetime(2024, 1, 1), expected_end_date=datetime(2025, 1, 1),
-        approved_cost=1000000, reported_progress=50.0, status="watch", is_demo=1,
+        approved_cost=1000000, reported_progress=50.0, status="watch", is_demo=0,
     ))
     db.flush()
     db.add_all([
@@ -90,7 +84,7 @@ def test_list_projects(auth_headers):
     assert resp.status_code == 200
     projects = resp.json()
     assert len(projects) == 1
-    assert projects[0]["name"] == "[DEMO] Test Project"
+    assert projects[0]["name"] == "[TEST] Test Project"
 
 
 def test_get_project_detail(auth_headers):
@@ -101,51 +95,47 @@ def test_get_project_detail(auth_headers):
     assert body["approved_cost"] == 1000000
 
 
-def test_esri_provider_fallback():
-    provider = EsriProvider()
-    t1, t2 = provider.get_scene_pair(28.5, 77.5)
-    assert t1.source == "esri-world-imagery-fallback"
-    assert t2.source == "esri-world-imagery-fallback"
-    assert t1.crs == "EPSG:4326"
-
-
-def test_change_detector_and_geojson_conversion(tmp_path):
-    detector = ChangeDetector(min_cv_confidence=0.1)
-    t1_arr = np.zeros((512, 512, 3), dtype=np.uint8)
-    t2_arr = np.zeros((512, 512, 3), dtype=np.uint8)
-    # Add synthetic change rectangle
-    t2_arr[100:200, 100:200] = 255
-
-    output = detector.detect(t1_arr, t2_arr, project_id=99, asset_dir=tmp_path)
-    assert len(output.candidates) > 0
-    cand = output.candidates[0]
-    assert cand.bbox[2] > 0 and cand.bbox[3] > 0
-
-    # Convert to GeoJSON EPSG:4326
-    transform = from_bounds(77.48, 28.48, 77.52, 28.52, 512, 512)
-    geo_proc = ChangeGeoProcessor()
-    geojson = geo_proc.candidates_to_geojson([cand], transform=transform)
-
-    assert geojson["type"] == "FeatureCollection"
-    assert len(geojson["features"]) == 1
-    feat = geojson["features"][0]
-    assert feat["geometry"]["type"] == "Polygon"
-    assert len(feat["geometry"]["coordinates"][0]) == 5
-
-
-def test_ai_analyzer_fallback():
-    analyzer = SatelliteChangeAnalyzer()
-    res = analyzer.analyze_candidates(
-        crops=[],
-        t1_date=datetime.now(timezone.utc),
-        t2_date=datetime.now(timezone.utc),
-    )
-    assert res.analysis.change_detected is False
-    assert res.usage.model == analyzer.model_name
+def _fake_pipeline_response(project_id: str) -> dict:
+    """Shaped like satellite-service's real /pipeline/run JSON response."""
+    return {
+        "project_id": project_id,
+        "t1_scene": {
+            "scene_id": "S2A_TEST_T1", "acquisition_date": "2026-01-01T05:00:00+00:00",
+            "cloud_percentage": 1.2, "bbox": [77.0, 28.0, 77.1, 28.1],
+        },
+        "t2_scene": {
+            "scene_id": "S2B_TEST_T2", "acquisition_date": "2026-06-01T05:00:00+00:00",
+            "cloud_percentage": 2.4, "bbox": [77.0, 28.0, 77.1, 28.1],
+        },
+        "observable_change_percent": 6.5,
+        "changed_pixel_count": 1200,
+        "total_pixel_count": 65536,
+        "candidate_count": 1,
+        "candidates": [
+            {"candidate_id": "candidate-001", "bbox": [10, 10, 40, 40], "pixel_area": 1200,
+             "estimated_area_m2": 120000.0, "confidence": 0.72, "type_hint": "built_up_or_construction"},
+        ],
+        "geojson_overlay": {"type": "FeatureCollection", "features": []},
+        "before_image_path": f"data/T1/{project_id}/true_color.png",
+        "after_image_path": f"data/T2/{project_id}/true_color.png",
+        "mask_image_path": f"data/T2/{project_id}/change_mask.png",
+        "explanation": {
+            "change_detected": True, "confidence": 0.72,
+            "summary": "Detected construction-like change.",
+            "changes": [{"type": "built_up_or_construction", "confidence": 0.72, "description": "test change"}],
+            "narrated_by": "template-fallback",
+        },
+        "model_version": "planaura-resnet18-featurediff-v1",
+        "error": None,
+    }
 
 
 def test_analysis_api_workflow(auth_headers):
-    analysis = client.post("/api/projects/1/analyze", headers=auth_headers)
+    with patch(
+        "app.api.projects.satellite_service_run_pipeline",
+        return_value=_fake_pipeline_response("1"),
+    ):
+        analysis = client.post("/api/projects/1/analyze", headers=auth_headers)
     assert analysis.status_code == 200
     body = analysis.json()
     assert "t1_scene" in body

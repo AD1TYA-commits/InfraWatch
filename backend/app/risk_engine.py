@@ -89,7 +89,7 @@ class SatelliteDiscrepancyResult:
     has_data: bool
     is_real_satellite: bool
     satellite_source: str
-    evidence_type: str  # "real_satellite" | "manual_upload" | "legacy_demo" | "unavailable"
+    evidence_type: str  # "satellite" | "manual_upload" | "unavailable"
     confidence: float
     explanation: str
 
@@ -324,9 +324,13 @@ def compute_satellite_discrepancy_risk(
     reported_progress: Optional[float],
     observed_change: Optional[float],
     satellite_confidence: float = 0.85,
-    evidence_type: str = "real_satellite",  # "real_satellite" | "manual_upload" | "legacy_demo" | "unavailable"
+    evidence_type: str = "satellite",  # "satellite" | "manual_upload" | "unavailable"
 ) -> SatelliteDiscrepancyResult:
-    is_real = evidence_type == "real_satellite"
+    # Matches Project.evidence_source's actual vocabulary — this used to
+    # check for "real_satellite", a value nothing ever actually set (the
+    # real caller always passes "satellite"), so every risk assessment was
+    # silently capped at 0.45 confidence regardless of evidence quality.
+    is_real = evidence_type == "satellite"
 
     if reported_progress is None or observed_change is None:
         return SatelliteDiscrepancyResult(

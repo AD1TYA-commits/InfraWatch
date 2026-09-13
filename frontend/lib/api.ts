@@ -10,8 +10,9 @@ export const API_BASE = rawApiBase.replace("localhost", "127.0.0.1");
 const TOKEN_KEY = "infrawatch_token";
 
 /** Resolve an image/asset path returned by the backend into a full URL.
- * Demo-mode assets come back as a backend-relative path (e.g. "/demo-assets/x.png");
- * real satellite-service results come back already-absolute (e.g. "http://localhost:8001/data/...").
+ * Manually-uploaded evidence photos come back as a backend-relative path
+ * (e.g. "/manual-evidence/x.png"); real satellite-service results come back
+ * already-absolute (e.g. "http://localhost:8001/data/...").
  * Returns "" for empty/missing input so callers can safely check truthiness. */
 export function resolveAssetUrl(url?: string | null): string {
   if (!url) return "";

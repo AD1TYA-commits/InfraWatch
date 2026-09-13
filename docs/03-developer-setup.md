@@ -35,8 +35,7 @@ git clone https://github.com/chiragawasthi17/satellite-service.git satellite-ser
 
 ```bash
 cd InfraWatch
-./start-all.sh          # demo mode
-./start-all.sh real     # real mode (live Sentinel-2, needs internet)
+./start-all.sh
 ```
 
 See [00-quickstart.md](00-quickstart.md) for full detail on what this does
@@ -61,15 +60,14 @@ cd InfraWatch/backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env: set SATELLITE_MODE=real to test against real satellite imagery;
-#   leave SATELLITE_MODE=demo for zero-network, instant startup using bundled
-#   demo images (this is the default already in .env.example).
 uvicorn app.main:app --reload --port 8000
 ```
 
-The database is created and auto-seeded (demo projects, the real MPLADS
-registry, demo accounts) the first time the app starts against an empty
-database — see `app/main.py`.
+The database is created and auto-seeded (the 4 real manual-evidence
+projects, demo accounts) the first time the app starts against an empty
+database — see `app/main.py`. satellite-service must be running and
+reachable at `SATELLITE_SERVICE_URL` for any coordinate-based project's
+analysis to work — there is no offline fallback.
 
 InfraWatch frontend, in a third terminal:
 
@@ -94,9 +92,9 @@ SQLAlchemy ORM code runs unchanged (geometry is stored as WKT text at the
 ORM layer either way — see the note in `backend/app/models/models.py`).
 Auto-seeding is guarded the same way as local dev: it only runs against a
 genuinely empty database, so re-running `docker compose up` against an
-existing volume never re-seeds or wipes data. Set `SATELLITE_MODE=real` and
-`GEMINI_API_KEY` as environment variables before `up` if you want real
-imagery; otherwise it defaults to `demo`.
+existing volume never re-seeds or wipes data. Set `GEMINI_API_KEY` as an
+environment variable before `up` for Gemini narration in satellite-service
+(otherwise it falls back to a template).
 
 ## 5. Environment variables reference
 
@@ -105,14 +103,8 @@ imagery; otherwise it defaults to `demo`.
 | Variable | Purpose | Default |
 |---|---|---|
 | `DATABASE_URL` | DB connection string | `sqlite:///./infrawatch.db` |
-| `SATELLITE_MODE` | `demo` or `real` | `demo` |
-| `SATELLITE_PROVIDER` | Legacy in-process provider name (only relevant to the demo-mode fallback path) | `planetary-computer` |
-| `SATELLITE_SERVICE_URL` | Base URL of the satellite-service microservice (`real` mode only) | `http://localhost:8001` |
-| `MAX_CLOUD_PERCENTAGE` | Demo-mode fallback path's cloud filter | `20` |
-| `GEMINI_API_KEY` | Enables Gemini vision analysis in the legacy demo-mode fallback analyzer | empty |
-| `AI_VISION_PROVIDER` / `AI_VISION_MODEL` | Legacy demo-mode analyzer model identifiers | `gemini` / `gemini-2.5-flash-lite` |
+| `SATELLITE_SERVICE_URL` | Base URL of the satellite-service microservice — every coordinate-based project is analyzed by calling out to it | `http://localhost:8001` |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000` |
-| `AI_MAX_CANDIDATES`, `AI_CROP_SIZE`, `AI_CONTEXT_MARGIN`, `AI_MIN_CV_CONFIDENCE`, `AI_ENABLE_CACHE` | Demo-mode fallback path's local OpenCV/crop tuning | see `app/config.py` |
 | `JWT_SECRET_KEY` | Signs and verifies auth tokens | `dev-only-insecure-secret-change-me` — **override this for any deployment reachable beyond your own machine** (e.g. `openssl rand -hex 32`); present in `.env.example` with this insecure default precisely so a deployment doesn't silently ship without one |
 | `JWT_EXPIRE_MINUTES` | Token lifetime | `10080` (7 days) |
 
@@ -154,21 +146,15 @@ InfraWatch/
 │   │   │   └── health.py             # /api/health
 │   │   ├── satellite_service_client.py    # HTTP client for satellite-service /pipeline/run
 │   │   ├── manual_evidence_client.py      # HTTP client for satellite-service /model/detect-images
-│   │   ├── satellite_provider.py, change_detector.py, change_analyzer.py,
-│   │   │   change_crops.py, geo_processor.py, imagery_processor.py
-│   │   │                                   # legacy in-process pipeline — only used for
-│   │   │                                   # bundled [DEMO] image pairs now
-│   │   ├── demo_assets/               # bundled demo before/after image pairs
 │   │   └── manual_evidence/           # contractor-uploaded + seeded real evidence photos
 │   ├── data/processed/mplads_normalized.csv   # the real ~1,000-row MPLADS CSV (reference data —
 │   │                                           # only 3 rows with a verified coordinate become projects)
 │   ├── scripts/
-│   │   ├── seed_demo_data.py          # 6 synthetic [DEMO] projects
 │   │   ├── seed_real_mplads.py        # imports the 3 geolocated MPLADS CSV rows + attaches
 │   │   │                             # real manual evidence (4 projects total incl. Tamil Nadu)
 │   │   ├── seed_demo_users.py         # the 2 demo accounts
 │   │   └── import_pmgsy_csv.py        # optional: 24 real PMGSY facility locations, via the real HTTP API
-│   └── tests/                        # pytest (26 tests across 4 files) — see 04-testing-and-qa.md
+│   └── tests/                        # pytest (23 tests across 3 files) — see 04-testing-and-qa.md
 ├── frontend/
 │   ├── app/{login,register,contractor,projects/[id]}/page.tsx, page.tsx (dashboard), layout.tsx
 │   ├── components/{AuthProvider,Dashboard,ProjectDetailView,ProjectMap,KpiCards,...}.tsx
@@ -198,14 +184,12 @@ cd frontend && npx tsc --noEmit
 ```bash
 cd backend
 rm -f infrawatch.db
-python -m scripts.seed_demo_data
 python -m scripts.seed_real_mplads
 python -m scripts.seed_demo_users
 ```
 
-(`seed_demo_data` clears and re-seeds unconditionally when run directly;
-that's why `app/main.py` only calls it automatically when the projects table
-is empty — see the comment there.)
+(Just restarting the backend against an empty database does the same thing
+automatically — see `app/main.py`.)
 
 **Import the optional real PMGSY sample** (backend must already be running):
 
@@ -215,14 +199,10 @@ python -m scripts.import_pmgsy_csv                      # default CSV path + loc
 python -m scripts.import_pmgsy_csv --skip-analyze        # create projects without running analysis yet
 ```
 
-**Switch satellite mode without hand-editing `.env`:** re-run
-`./start-all.sh real` (or `demo`) from the repo root — it patches
-`backend/.env`'s `SATELLITE_MODE` line for you.
-
 ## 8. Troubleshooting
 
 - **`ModuleNotFoundError` running a script under `scripts/`** — run it as a
-  module from `backend/` (`python -m scripts.seed_demo_data`), not as a bare
+  module from `backend/` (`python -m scripts.seed_real_mplads`), not as a bare
   script path; the scripts insert the backend root onto `sys.path`
   themselves but expect to be invoked from there.
 - **bcrypt/passlib import errors** — `requirements.txt` deliberately pins
@@ -232,9 +212,10 @@ python -m scripts.import_pmgsy_csv --skip-analyze        # create projects witho
 - **401 on every API call from the frontend** — check `localStorage` for an
   `infrawatch_token` key; log out and back in if the token has expired
   (default lifetime 7 days) or `JWT_SECRET_KEY` changed since it was issued.
-- **`SATELLITE_MODE=real` requests hang or 502** — confirm satellite-service
-  is actually running on port 8001 and reachable at `SATELLITE_SERVICE_URL`;
-  check `satellite-service.log`.
+- **Analysis requests hang or 502** — confirm satellite-service is actually
+  running on port 8001 and reachable at `SATELLITE_SERVICE_URL`; check
+  `satellite-service.log`. There is no offline fallback — satellite-service
+  must be up for any coordinate-based project's analysis to succeed.
 - **Windows: connections to `localhost` time out for ~30s** — the frontend's
   `lib/api.ts` normalizes `localhost` to `127.0.0.1` specifically to avoid
   this (an IPv6 `::1` resolution delay); if you still see it, check your

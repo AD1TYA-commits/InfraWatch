@@ -15,7 +15,6 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_satellite_integration.db"
-os.environ["SATELLITE_MODE"] = "real"
 
 import pytest
 import httpx
@@ -82,7 +81,7 @@ def _make_project(db, **overrides) -> Project:
     defaults = dict(
         name="[TEST] Real-mode Project", project_type="Roads", description="test",
         latitude=28.5, longitude=77.5, geometry_wkt="POINT(77.5 28.5)",
-        reported_progress=82.0, status="normal", is_demo=1,
+        reported_progress=82.0, status="normal", is_demo=0,
     )
     defaults.update(overrides)
     project = Project(**defaults)
@@ -169,13 +168,13 @@ def test_execute_via_satellite_service_degrades_gracefully_on_failure():
 def test_list_projects_exposes_latest_image_url_for_both_source_kinds():
     db = SessionLocal()
     try:
-        demo_project = _make_project(db, name="[TEST] Demo asset project")
+        manual_project = _make_project(db, name="[TEST] Manual-upload project")
         real_project = _make_project(db, name="[TEST] Satellite-service project")
         db.flush()
 
         db.add(SatelliteObservation(
-            project_id=demo_project.id, acquisition_date=datetime(2024, 1, 1),
-            source="bundled-demo-image", image_reference=f"project_{demo_project.id}_after.png",
+            project_id=manual_project.id, acquisition_date=datetime(2024, 1, 1),
+            source="manual-upload", image_reference=f"{manual_project.id}/after.png",
             processing_status="ready",
         ))
         db.add(SatelliteObservation(
@@ -186,9 +185,9 @@ def test_list_projects_exposes_latest_image_url_for_both_source_kinds():
         ))
         db.commit()
 
-        summaries = {p.id: p for p in list_projects(db)}
+        summaries = {p.id: p for p in list_projects(db, current_user=None)}
 
-        assert summaries[demo_project.id].latest_image_url == f"/demo-assets/project_{demo_project.id}_after.png"
+        assert summaries[manual_project.id].latest_image_url == f"/manual-evidence/{manual_project.id}/after.png"
         assert summaries[real_project.id].latest_image_url.startswith("http")
         assert summaries[real_project.id].latest_image_url.endswith(f"data/T2/{real_project.id}/true_color.png")
     finally:

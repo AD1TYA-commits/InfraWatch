@@ -18,14 +18,6 @@ from app.schemas.schemas import (
     ProjectCreateIn, ProjectOut, ProjectSummary, RiskOut, RiskFactorOut,
     SceneOut, BoundingBox, AIAnalysis, AIUsage, AIChangeItem,
 )
-import cv2
-from rasterio.transform import from_bounds
-from app.satellite_provider import SatelliteScene
-from app.imagery_processor import ImageryProcessor, ProcessedImagery
-from app.change_detector import ChangeDetector
-from app.change_crops import CandidateCropGenerator
-from app.change_analyzer import SatelliteChangeAnalyzer
-from app.geo_processor import ChangeGeoProcessor
 from app.satellite_service_client import (
     run_pipeline as satellite_service_run_pipeline,
     SatelliteServiceError,
@@ -46,9 +38,9 @@ def _manual_evidence_url(relative_path: str) -> str:
 
 def _latest_image_url(db: Session, project_id: int) -> Optional[str]:
     """Most recent satellite observation's image, as a URL the frontend can
-    hotlink directly — whether it's a bundled demo asset (served by this
-    backend at /demo-assets/) or a real satellite-service result (served by
-    that separate microservice at its own host)."""
+    hotlink directly — whether it's a manually-uploaded evidence photo
+    (served by this backend at /manual-evidence/) or a real satellite-service
+    result (served by that separate microservice at its own host)."""
     obs = (
         db.query(SatelliteObservation)
         .filter(SatelliteObservation.project_id == project_id)
@@ -57,9 +49,9 @@ def _latest_image_url(db: Session, project_id: int) -> Optional[str]:
     )
     if not obs:
         return None
-    if obs.image_reference.startswith("data/"):
-        return satellite_asset_url(obs.image_reference)
-    return f"/demo-assets/{obs.image_reference}"
+    if obs.source == "manual-upload":
+        return _manual_evidence_url(obs.image_reference)
+    return satellite_asset_url(obs.image_reference)
 
 
 @router.get("", response_model=List[ProjectSummary])
@@ -481,73 +473,15 @@ def execute_pipeline(project: Project, db: Session) -> AnalysisResultOut:
     start_time = time.time()
     logger.info(f"Executing dynamic satellite pipeline for Project #{project.id} ({project.name})")
 
-    processor = ImageryProcessor()
-    demo_b_path = processor.asset_dir / f"project_{project.id}_before.png"
-    demo_a_path = processor.asset_dir / f"project_{project.id}_after.png"
-
-    # Gated on project.is_demo (not just "does a same-numbered asset file
-    # happen to exist") — demo assets are named only by ID (project_1_before.png,
-    # project_2_before.png, ...), so without this a REAL project that happens
-    # to land on database ID 1-6 would silently be misrouted into the demo
-    # path instead of its actual evidence pipeline.
-    uses_demo_assets = (
-        bool(project.is_demo)
-        and settings.satellite_mode != "real"
-        and demo_b_path.exists()
-        and demo_a_path.exists()
-    )
-    if uses_demo_assets:
-        logger.info(f"Loading bundled demo image pair for Project #{project.id}")
-        t1_arr = cv2.imread(str(demo_b_path))
-        t2_arr = cv2.imread(str(demo_a_path))
-        delta = 0.0025
-        bounds = (project.longitude - delta, project.latitude - delta, project.longitude + delta, project.latitude + delta)
-        transform = from_bounds(bounds[0], bounds[1], bounds[2], bounds[3], 512, 512)
-
-        t1_date = project.start_date or datetime(2024, 4, 1, tzinfo=timezone.utc)
-        t2_date = datetime(2025, 2, 15, tzinfo=timezone.utc)
-
-        t1_scene = SatelliteScene(
-            scene_id=f"demo-t1-{project.id}",
-            acquisition_date=t1_date,
-            cloud_percentage=0.0,
-            source="bundled-demo-image",
-            image_href=f"/demo-assets/{demo_b_path.name}",
-            bbox=bounds,
-            crs="EPSG:4326",
-            resolution=0.5,
-        )
-        t2_scene = SatelliteScene(
-            scene_id=f"demo-t2-{project.id}",
-            acquisition_date=t2_date,
-            cloud_percentage=0.0,
-            source="bundled-demo-image",
-            image_href=f"/demo-assets/{demo_a_path.name}",
-            bbox=bounds,
-            crs="EPSG:4326",
-            resolution=0.5,
-        )
-        processed = ProcessedImagery(
-            t1_array=t1_arr,
-            t2_array=t2_arr,
-            transform=transform,
-            crs="EPSG:4326",
-            bounds=bounds,
-            t1_scene=t1_scene,
-            t2_scene=t2_scene,
-            t1_image_path=demo_b_path,
-            t2_image_path=demo_a_path,
-        )
-    elif project.evidence_source == "manual_upload":
+    if project.evidence_source == "manual_upload":
         # Legacy project with no usable coordinate — a contractor supplied
         # before/after photos instead (see /evidence/upload). Re-run detection
         # on the stored files (same real model, via satellite-service).
         return _execute_via_manual_evidence(project, db, start_time)
     elif project.latitude is not None and project.longitude is not None:
-        # Real (non-demo) projects are analyzed by the standalone satellite-service
-        # microservice (separate repo/folder) instead of the legacy in-process
-        # Sentinel2Provider/EsriProvider/ChangeDetector/SatelliteChangeAnalyzer chain
-        # below — that chain now only runs for bundled demo image pairs. See
+        # Every coordinate-based project is analyzed by the standalone
+        # satellite-service microservice (separate repo/folder) — real
+        # Sentinel-2 fetch, real model. See
         # satellite-service/docs/04-integration.md for the full contract.
         return _execute_via_satellite_service(project, db, start_time)
     else:
@@ -556,176 +490,11 @@ def execute_pipeline(project: Project, db: Session) -> AnalysisResultOut:
         # published datasets don't include GPS) — it is not an error, just an
         # accurate "nothing to screen with yet" status.
         return _unavailable_result(
-            project, start_time,
+            project, db, start_time,
             "No GPS coordinate is on record for this project, and no before/after "
             "evidence has been uploaded yet. This project cannot be satellite-screened "
             "until either becomes available — see the Contractor evidence-upload flow.",
         )
-
-    # 3. Local Computer Vision Candidate Region Change Detector
-    detector = ChangeDetector(min_cv_confidence=settings.ai_min_cv_confidence)
-    detection = detector.detect(
-        t1=processed.t1_array,
-        t2=processed.t2_array,
-        project_id=project.id,
-        asset_dir=processor.asset_dir,
-    )
-
-    # 4. Candidate Crop Extraction (Cost-optimized for Vision AI input)
-    crop_generator = CandidateCropGenerator(
-        context_margin=settings.ai_context_margin,
-        max_candidates=settings.ai_max_candidates,
-    )
-    crops = crop_generator.generate_crops(
-        t1=processed.t1_array,
-        t2=processed.t2_array,
-        candidates=detection.candidates,
-    )
-
-    # 5. Gemini 2.5 Flash-Lite Vision AI Analyzer
-    analyzer = SatelliteChangeAnalyzer()
-    analyzer_output = analyzer.analyze_candidates(
-        crops=crops,
-        t1_date=t1_scene.acquisition_date,
-        t2_date=t2_scene.acquisition_date,
-        project_name=project.name,
-        project_type=project.project_type,
-    )
-
-    # 6. GeoJSON Converter (candidate pixel coords -> EPSG:4326 polygons)
-    geo_processor = ChangeGeoProcessor()
-    geojson_overlay = geo_processor.candidates_to_geojson(
-        candidates=detection.candidates,
-        transform=processed.transform,
-        candidate_statuses=analyzer_output.candidate_statuses,
-        detection_date=t2_scene.acquisition_date.isoformat(),
-    )
-
-    # 7. Update Database Observations & Anomaly Evidence Records
-    db.query(AIResult).filter(AIResult.project_id == project.id).delete()
-    db.query(Anomaly).filter(Anomaly.project_id == project.id).delete()
-    db.query(SatelliteObservation).filter(SatelliteObservation.project_id == project.id).delete()
-
-    obs1 = SatelliteObservation(
-        project_id=project.id,
-        acquisition_date=t1_scene.acquisition_date,
-        source=t1_scene.source,
-        image_reference=processed.t1_image_path.name,
-        cloud_percentage=t1_scene.cloud_percentage,
-        processing_status="ready",
-    )
-    obs2 = SatelliteObservation(
-        project_id=project.id,
-        acquisition_date=t2_scene.acquisition_date,
-        source=t2_scene.source,
-        image_reference=processed.t2_image_path.name,
-        cloud_percentage=t2_scene.cloud_percentage,
-        processing_status="ready",
-    )
-    db.add_all([obs1, obs2])
-    db.flush()
-
-    # Determine recommendation & severity
-    obs_change = detection.observable_change_percent
-    rep_prog = project.reported_progress
-    if rep_prog >= 70 and obs_change < 3.0:
-        recommendation = "Field verification recommended"
-        severity = "field_verification"
-        explanation = (
-            f"High reported progress ({rep_prog}%) is paired with low observable change ({obs_change}%). "
-            "Field verification recommended."
-        )
-    elif rep_prog >= 70 and obs_change >= 10.0:
-        recommendation = "No significant discrepancy"
-        severity = "normal"
-        explanation = (
-            f"High reported progress ({rep_prog}%) is supported by substantial observable ground activity ({obs_change}%)."
-        )
-    else:
-        recommendation = "Review recommended"
-        severity = "watch"
-        explanation = (
-            f"Reported progress ({rep_prog}%) and observable change ({obs_change}%) require regular program review."
-        )
-
-    db.add(
-        AIResult(
-            project_id=project.id,
-            observation_a=obs1.id,
-            observation_b=obs2.id,
-            changed_area=float(detection.changed_pixel_count),
-            observed_progress=obs_change,
-            confidence=analyzer_output.analysis.confidence,
-            model_version=f"{settings.ai_vision_provider}:{settings.ai_vision_model}",
-        )
-    )
-    db.add(
-        Anomaly(
-            project_id=project.id,
-            type="observable_change_comparison",
-            score=round(abs(rep_prog - obs_change), 2),
-            severity=severity,
-            explanation=explanation,
-        )
-    )
-    project.status = severity if severity in ("normal", "watch", "high", "critical") else "watch"
-    project.evidence_source = "satellite"
-    if not uses_demo_assets:
-        project.is_demo = 0
-    db.commit()
-
-    duration = round(time.time() - start_time, 2)
-    logger.info(
-        f"Pipeline complete for Project #{project.id} in {duration}s. Candidates={len(detection.candidates)}, AI={analyzer_output.analysis.summary}"
-    )
-
-    base = "/demo-assets/"
-    t1_scene_out = SceneOut(
-        scene_id=t1_scene.scene_id,
-        acquisition_date=t1_scene.acquisition_date,
-        source=t1_scene.source,
-        image_url=f"{base}{processed.t1_image_path.name}",
-        cloud_percentage=t1_scene.cloud_percentage,
-        bbox=list(t1_scene.bbox),
-        crs=t1_scene.crs,
-    )
-    t2_scene_out = SceneOut(
-        scene_id=t2_scene.scene_id,
-        acquisition_date=t2_scene.acquisition_date,
-        source=t2_scene.source,
-        image_url=f"{base}{processed.t2_image_path.name}",
-        cloud_percentage=t2_scene.cloud_percentage,
-        bbox=list(t2_scene.bbox),
-        crs=t2_scene.crs,
-    )
-
-    boxes = [BoundingBox(x=c.bbox[0], y=c.bbox[1], width=c.bbox[2], height=c.bbox[3]) for c in detection.candidates]
-
-    return AnalysisResultOut(
-        reported_progress=rep_prog,
-        observable_change_percent=obs_change,
-        changed_pixel_count=detection.changed_pixel_count,
-        total_pixel_count=detection.total_pixel_count,
-        bounding_boxes=boxes,
-        recommendation=recommendation,
-        explanation=explanation,
-        before_image_url=f"{base}{processed.t1_image_path.name}",
-        after_image_url=f"{base}{processed.t2_image_path.name}",
-        change_mask_url=f"{base}{detection.mask_path.name}",
-        change_overlay_url=f"{base}{detection.overlay_path.name}",
-        is_synthetic_demo=uses_demo_assets,
-        method=f"Local OpenCV differencing with {analyzer_output.usage.model} and GeoJSON overlay",
-        t1_scene=t1_scene_out,
-        t2_scene=t2_scene_out,
-        candidate_count=len(detection.candidates),
-        analyzed_candidate_count=len(crops),
-        ai_model=analyzer_output.usage.model,
-        ai_analysis=analyzer_output.analysis,
-        ai_usage=analyzer_output.usage,
-        geojson_overlay=geojson_overlay,
-        analysis_timestamp=datetime.now(timezone.utc),
-        processing_duration_sec=duration,
-    )
 
 
 @router.post("/{project_id}/ingest", response_model=IngestResultOut)
