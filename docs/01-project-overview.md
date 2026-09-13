@@ -114,7 +114,7 @@ Full detail: [06-auth-and-roles.md](06-auth-and-roles.md).
 ## 7. Current status (be honest about this in a demo)
 
 - Full-stack auth, deterministic risk scoring, and the manual-evidence
-  workflow are implemented and tested (22 backend tests).
+  workflow are implemented and tested (23 backend tests).
 - The risk engine's weights (`app/config.py`'s `RISK_WEIGHTS`) and the
   LOW/MEDIUM/HIGH/CRITICAL score thresholds (`app/risk_engine.py`'s
   `_classify()`) are reasoned defaults, not calibrated against a labeled

@@ -42,7 +42,7 @@ pytest tests/ -v
   real Sentinel-2-screened ones — silently had its confidence capped at 0.45
   with a self-contradictory "not a real satellite pass" explanation.
 
-**`test_api.py` (9 tests)** — core project API, exercised against the real
+**`test_api.py` (6 tests)** — core project API, exercised against the real
 pipeline with satellite-service's HTTP call mocked:
 
 - Health check reports `database: connected`.

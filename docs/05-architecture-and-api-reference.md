@@ -196,8 +196,8 @@ Each component individually returns `has_data: false` (not a fabricated
 score) when its required inputs are missing — missing data lowers
 confidence, it is never treated as risk. The composite `confidence` field is
 an average of each component's own confidence, additionally capped at 0.45
-whenever the evidence isn't from a real satellite pass (manual-upload or
-demo evidence never claims satellite-grade certainty).
+whenever the evidence isn't from a real satellite pass (manual-upload
+evidence never claims satellite-grade certainty).
 
 **No project ID is ever accepted by, or special-cased in, any risk-engine
 function** — `compute_satellite_discrepancy_risk()` doesn't even take a

@@ -75,13 +75,17 @@ into the same formula for everyone — never as a special case keyed to its ID.
 one code path attempting to do Sentinel-2 fetch + change detection, in
 various states of being finished or abandoned, without a clear single
 source of truth for which one actually ran in which mode. The current
-architecture has exactly one real pipeline (the standalone
+architecture has exactly one real pipeline: the standalone
 `satellite-service` microservice, called via
-`app/satellite_service_client.py`) plus exactly one clearly-scoped fallback
-(the legacy in-process OpenCV path, which now only ever runs for bundled
-`[DEMO]` image pairs — see the branch comment in
-`app/api/projects.py`'s `execute_pipeline()`). Anything that wasn't one of
-those two was not carried forward.
+`app/satellite_service_client.py`. Anything that wasn't that was not
+carried forward. (InfraWatch briefly kept its own pre-existing legacy
+in-process OpenCV fallback, used only by 6 fully-synthetic `[DEMO]`
+projects — unrelated to anything from New1, present since this repo's first
+commit. That fallback and those projects were later removed entirely too,
+once real data covered the "something to show immediately" need without
+fabricating a before/after pair; see `execute_pipeline()` in
+`app/api/projects.py`, which now has exactly two real branches —
+manual-evidence and satellite — plus an honest "unavailable" state.)
 
 **Hardcoded personal file paths.** Some scripts referenced absolute paths
 specific to one contributor's machine, which would break for anyone else
