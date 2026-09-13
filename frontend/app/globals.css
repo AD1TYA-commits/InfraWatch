@@ -33,9 +33,12 @@
   --color-hairline-input:     #a8bccc;
   /* Accent */
   --color-ruby:               #a3241d;
-  --color-magenta:            #a3241d;
-  --color-lemon:              #b8860b;
-  --color-shadow-blue:        #0a1929;
+  /* Error / danger banners — one definition reused everywhere instead of
+     each component hardcoding its own slightly-different red */
+  --color-danger-bg:          #fef2f2;
+  --color-danger-bg-strong:   #fee2e2;
+  --color-danger-border:      #fecaca;
+  --color-danger-text:        #991b1b;
   /* Elevation */
   --shadow-1: rgba(10,25,41,0.08) 0 1px 3px;
   --shadow-2: rgba(10,25,41,0.10) 0 8px 24px, rgba(10,25,41,0.05) 0 2px 6px;
@@ -79,9 +82,11 @@
   --color-hairline-input:     #2e2e2e;
   /* Accent */
   --color-ruby:               #e57373;
-  --color-magenta:            #e57373;
-  --color-lemon:              #d4a72c;
-  --color-shadow-blue:        #000000;
+  /* Error / danger banners */
+  --color-danger-bg:          rgba(229, 115, 115, 0.12);
+  --color-danger-bg-strong:   rgba(229, 115, 115, 0.2);
+  --color-danger-border:      rgba(229, 115, 115, 0.35);
+  --color-danger-text:        #ffb4b4;
   /* Elevation */
   --shadow-1: rgba(0, 0, 0, 0.7) 0 1px 3px;
   --shadow-2: rgba(0, 0, 0, 0.9) 0 8px 24px, rgba(0, 0, 0, 0.6) 0 2px 6px;
@@ -107,7 +112,7 @@
   }
   /* Serif display face for headings — a registry/gazette feel rather than a
      consumer SaaS product, matching the official-government reference. */
-  h1, h2, h3 {
+  h1, h2, h3, h4 {
     font-family: var(--font-display);
   }
 }

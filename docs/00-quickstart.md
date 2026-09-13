@@ -39,9 +39,13 @@ On first boot, the backend automatically seeds itself — nothing to prepare
 by hand:
 
 - 6 synthetic `[DEMO]` projects with bundled before/after image pairs
-- the real ~1,000-row MPLADS works registry (`backend/data/processed/mplads_normalized.csv`),
-  including 4 real legacy projects with real manually-photographed
-  before/after evidence
+- 4 real legacy projects with real manually-photographed before/after
+  evidence, sourced from a real ~1,000-row MPLADS works CSV
+  (`backend/data/processed/mplads_normalized.csv`) — only the 3 rows in that
+  CSV with a verified GPS coordinate become registry entries; the other 997
+  have no coordinate and no real progress figure at all, so they're kept as
+  reference data on disk rather than imported as ~1,000 misleading "0%
+  progress" rows (see [MERGE-NOTES.md](MERGE-NOTES.md))
 - one demo analyst account and one demo contractor account
 
 This seeding is guarded so it only ever runs against a genuinely empty

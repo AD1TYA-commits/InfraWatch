@@ -160,10 +160,12 @@ InfraWatch/
 │   │   │                                   # bundled [DEMO] image pairs now
 │   │   ├── demo_assets/               # bundled demo before/after image pairs
 │   │   └── manual_evidence/           # contractor-uploaded + seeded real evidence photos
-│   ├── data/processed/mplads_normalized.csv   # the real ~1,000-row MPLADS dataset
+│   ├── data/processed/mplads_normalized.csv   # the real ~1,000-row MPLADS CSV (reference data —
+│   │                                           # only 3 rows with a verified coordinate become projects)
 │   ├── scripts/
 │   │   ├── seed_demo_data.py          # 6 synthetic [DEMO] projects
-│   │   ├── seed_real_mplads.py        # imports the real MPLADS CSV + attaches real manual evidence
+│   │   ├── seed_real_mplads.py        # imports the 3 geolocated MPLADS CSV rows + attaches
+│   │   │                             # real manual evidence (4 projects total incl. Tamil Nadu)
 │   │   ├── seed_demo_users.py         # the 2 demo accounts
 │   │   └── import_pmgsy_csv.py        # optional: 24 real PMGSY facility locations, via the real HTTP API
 │   └── tests/                        # pytest — see 04-testing-and-qa.md

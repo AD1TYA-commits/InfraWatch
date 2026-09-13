@@ -485,8 +485,14 @@ def execute_pipeline(project: Project, db: Session) -> AnalysisResultOut:
     demo_b_path = processor.asset_dir / f"project_{project.id}_before.png"
     demo_a_path = processor.asset_dir / f"project_{project.id}_after.png"
 
+    # Gated on project.is_demo (not just "does a same-numbered asset file
+    # happen to exist") — demo assets are named only by ID (project_1_before.png,
+    # project_2_before.png, ...), so without this a REAL project that happens
+    # to land on database ID 1-6 would silently be misrouted into the demo
+    # path instead of its actual evidence pipeline.
     uses_demo_assets = (
-        settings.satellite_mode != "real"
+        bool(project.is_demo)
+        and settings.satellite_mode != "real"
         and demo_b_path.exists()
         and demo_a_path.exists()
     )

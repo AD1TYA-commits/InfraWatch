@@ -52,7 +52,7 @@ export default function RegisterPage() {
         </p>
 
         {error && (
-          <div style={{ padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius-md)", marginBottom: 16, fontSize: 13, color: "#991b1b" }}>
+          <div style={{ padding: "10px 14px", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-border)", borderRadius: "var(--radius-md)", marginBottom: 16, fontSize: 13, color: "var(--color-danger-text)" }}>
             {error}
           </div>
         )}

@@ -21,10 +21,11 @@ the actual Sentinel-2 imagery fetch and pretrained-model change detection.
 ```
 
 That's the entire setup — no manual database, dataset, or account step. On
-first boot the backend automatically seeds 6 offline demo projects, the
-real ~1,000-row MPLADS registry (including 4 projects with real
-manually-photographed before/after evidence), and one demo analyst + one
-demo contractor account. First run takes a few minutes (installs
+first boot the backend automatically seeds 6 offline demo projects, 4 real
+legacy projects with real manually-photographed before/after evidence (drawn
+from a real ~1,000-row MPLADS registry CSV — see "What's real vs. synthetic"
+below for why only these 4 become registry entries), and one demo analyst +
+one demo contractor account. First run takes a few minutes (installs
 everything); every run after that takes seconds. See
 [docs/00-quickstart.md](docs/00-quickstart.md) if anything about that isn't
 obvious.
@@ -75,23 +76,28 @@ for the full request-flow breakdown and API tables.
 
 ## What's real vs. synthetic in the data
 
-- **Real**: a ~1,000-row MPLADS works dataset (`backend/data/processed/mplads_normalized.csv`,
-  sourced from the government MPLADS/MoSPI portal), imported honestly —
-  most rows have no published GPS coordinate, which is the normal state of
-  this kind of open government data, not a bug. 4 real legacy projects
-  additionally have real manually-photographed before/after evidence (3 Goa/
-  Nagaland small works from the CSV, plus one standalone Tamil Nadu example
-  not in the CSV).
+- **Real, registered**: 4 real legacy projects with real manually-photographed
+  before/after evidence — 3 sourced from `backend/data/processed/mplads_normalized.csv`
+  (a real ~1,000-row government MPLADS/MoSPI works CSV — Goa/Nagaland small
+  works, the only 3 rows in that CSV with a verified GPS coordinate), plus one
+  standalone Tamil Nadu example not in the CSV at all. Also the 24-project
+  real PMGSY facility-location sample (`satellite-service/samples/pmgsy_real_projects.csv`,
+  importable via `backend/scripts/import_pmgsy_csv.py`) — real facility
+  locations with a synthetic placeholder `reported_progress` (these are
+  existing operational facilities, not in-progress works with a genuine
+  self-reported completion claim).
+- **Real, kept as reference only (not imported as registry entries)**: the
+  other 997 rows of that MPLADS CSV. That government dataset is a
+  sanction/works registry, not a live construction tracker — those rows have
+  no GPS coordinate and no real progress figure at all, so importing them as
+  individual "projects" would mean fabricating a misleading 0% progress for
+  data that simply doesn't carry that figure. The CSV stays in the repo as
+  real source data for future geolocation work; it's deliberately not turned
+  into ~1,000 unscreenable dashboard rows. See [docs/MERGE-NOTES.md](docs/MERGE-NOTES.md).
 - **Synthetic**: 6 bundled `[DEMO]` projects with fabricated coordinates and
   bundled demo image pairs, used so the dashboard has something to show with
   zero network access. Clearly labeled `is_demo=1` and named with a `[DEMO]`
   prefix.
-- **Optional**: a 24-project real PMGSY facility-location sample
-  (`satellite-service/samples/pmgsy_real_projects.csv`) can be imported via
-  `backend/scripts/import_pmgsy_csv.py` — real facility locations, but with a
-  synthetic placeholder `reported_progress` (these are existing operational
-  facilities, not in-progress works with a genuine self-reported completion
-  claim).
 
 ## Auth and roles
 
@@ -213,7 +219,7 @@ cd backend
 pytest tests/ -v
 ```
 
-25 tests covering authentication (register/login/role enforcement,
+26 tests covering authentication (register/login/role enforcement,
 password hashing), the risk engine (deterministic scoring, and an explicit
 test that its satellite-discrepancy function takes no `project_id` and so
 cannot be special-cased per project), project CRUD, and the satellite-service

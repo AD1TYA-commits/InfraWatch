@@ -16,9 +16,16 @@ reason for the rewrite.
 ## What was kept
 
 - **The real ~1,000-row MPLADS dataset.** `backend/data/processed/mplads_normalized.csv`
-  — real government MPLADS/MoSPI records, imported as-is via
-  `backend/scripts/seed_real_mplads.py`. This is the single most valuable
-  thing New1 contributed, and it's seeded automatically on every fresh boot.
+  — real government MPLADS/MoSPI records, the single most valuable thing
+  New1 contributed. It's kept in the repo as reference data, but **not**
+  bulk-imported wholesale: that CSV is a sanction/works registry, not a live
+  construction tracker, and 997 of its 1,000 rows have no GPS coordinate and
+  no real progress figure at all. Turning all 1,000 into individual
+  "projects" would mean fabricating a misleading 0% progress for records
+  that simply don't carry that data — which is exactly the kind of
+  fabrication this rewrite exists to avoid. `backend/scripts/seed_real_mplads.py`
+  instead pulls out only the 3 rows that DO have a verified coordinate (see
+  next bullet) and seeds those automatically on every fresh boot.
 - **The 4 real before/after photo sets for legacy projects with no GPS on
   record** — Goa Joggers Park, Goa Seraulim Crematorium, Nagaland Forest
   Colony Pond (all three also present as rows in the CSV, matched by

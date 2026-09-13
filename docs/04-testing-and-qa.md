@@ -4,7 +4,7 @@
 
 ### InfraWatch backend (`backend/tests/`, pytest)
 
-25 tests across three files. Run with:
+26 tests across four files. Run with:
 
 ```bash
 cd backend
@@ -69,6 +69,17 @@ layer with the real satellite-service, all mocked (no network needed):
 - `list_projects()`'s `latest_image_url` field resolves correctly for both a
   bundled demo asset (`/demo-assets/...`) and a real satellite-service
   result (absolute URL at the satellite-service host).
+
+**`test_demo_routing.py` (1 test)** — regression test for a real bug found
+during a data-cleanup pass: `execute_pipeline()` used to decide "is this a
+bundled demo project" purely by whether a same-numbered demo asset file
+happened to exist on disk, not by the project's actual `is_demo` flag. A
+real project landing on database ID 1-6 by coincidence would be silently
+misrouted into the demo pipeline (and crash if it had no coordinates, since
+that path assumes lat/lon always exist). This test deliberately creates a
+real project as the first row in a fresh database (forcing ID 1, colliding
+with a demo asset filename) and confirms it's still analyzed via its real
+evidence pipeline.
 
 ### satellite-service (`satellite-service/tests/`, pytest)
 

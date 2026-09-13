@@ -136,7 +136,7 @@ function RegisterProjectTab({ onCreated }: { onCreated: () => void }) {
         GPS coordinates are mandatory here — every new project is real-satellite-screened automatically from the moment it&apos;s created.
         For an existing project with no coordinate on record, use &quot;Upload Evidence&quot; instead.
       </p>
-      {error && <div style={{ padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius-md)", marginBottom: 16, fontSize: 13, color: "#991b1b" }}>{error}</div>}
+      {error && <div style={{ padding: "10px 14px", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-border)", borderRadius: "var(--radius-md)", marginBottom: 16, fontSize: 13, color: "var(--color-danger-text)" }}>{error}</div>}
       {success && <div style={{ padding: "10px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "var(--radius-md)", marginBottom: 16, fontSize: 13, color: "#166534" }}>Project registered — check &quot;My Projects&quot;.</div>}
       <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>
@@ -216,7 +216,7 @@ function UploadEvidenceTab({ onUploaded }: { onUploaded: () => void }) {
         works. Upload two photos (e.g. Google Maps/Earth screenshots) showing the site before and after. The same
         real change-detection model used for satellite imagery scores these — not a placeholder number.
       </p>
-      {error && <div style={{ padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius-md)", marginBottom: 16, fontSize: 13, color: "#991b1b" }}>{error}</div>}
+      {error && <div style={{ padding: "10px 14px", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-border)", borderRadius: "var(--radius-md)", marginBottom: 16, fontSize: 13, color: "var(--color-danger-text)" }}>{error}</div>}
       {result && <div style={{ padding: "10px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "var(--radius-md)", marginBottom: 16, fontSize: 13, color: "#166534" }}>{result}</div>}
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <label style={labelStyle}>

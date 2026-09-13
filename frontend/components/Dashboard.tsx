@@ -7,6 +7,7 @@ import { getProjects, getKpiSummary } from "@/lib/api";
 import { ProjectSummary, KPISummary, RiskStatus } from "@/types/project";
 import KpiCards from "./KpiCards";
 import StatusBadge from "./StatusBadge";
+import EvidenceBadge from "./EvidenceBadge";
 import { useTheme } from "./ThemeProvider";
 import { useRequireAuth } from "./AuthProvider";
 
@@ -23,6 +24,7 @@ export default function Dashboard() {
   const [selectedRisk, setSelectedRisk] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedSource, setSelectedSource] = useState<string>("all");
+  const [selectedEvidence, setSelectedEvidence] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const PAGE_SIZE = 100;
@@ -35,6 +37,7 @@ export default function Dashboard() {
         page: targetPage,
         page_size: PAGE_SIZE,
         data_source: selectedSource === "all" ? undefined : selectedSource,
+        evidence_source: selectedEvidence === "all" ? undefined : selectedEvidence,
       }),
       getKpiSummary().catch(() => null),
     ])
@@ -47,7 +50,7 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadData(page); }, [page, selectedSource]);
+  useEffect(() => { loadData(page); }, [page, selectedSource, selectedEvidence]);
 
   const projectTypes = useMemo(() => {
     if (!projects) return [];
@@ -138,8 +141,8 @@ export default function Dashboard() {
       <div
         className="max-w-3xl mx-auto my-12 p-6"
         style={{
-          background: "#fff5f5",
-          border: "1px solid #fecaca",
+          background: "var(--color-danger-bg)",
+          border: "1px solid var(--color-danger-border)",
           borderRadius: "var(--radius-lg)",
           boxShadow: "var(--shadow-1)",
         }}
@@ -147,7 +150,7 @@ export default function Dashboard() {
         <div className="flex items-start gap-4">
           <div
             className="p-2.5 rounded-lg flex-shrink-0"
-            style={{ background: "#fee2e2", color: "var(--color-ruby)" }}
+            style={{ background: "var(--color-danger-bg-strong)", color: "var(--color-ruby)" }}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -450,6 +453,25 @@ export default function Dashboard() {
               <option value="manual-field-evidence">Manual Field Evidence</option>
               <option value="contractor-registered">Contractor / Other</option>
             </select>
+
+            <div style={{ width: 1, height: 16, background: "var(--color-hairline)", margin: "0 4px" }} />
+            <span style={{ fontSize: 12, color: "var(--color-ink-mute)", marginRight: 4 }}>Evidence:</span>
+            <select
+              id="filter-evidence-source"
+              value={selectedEvidence}
+              onChange={(e) => { setSelectedEvidence(e.target.value); setPage(1); }}
+              style={{
+                background: "var(--color-canvas)", border: "1px solid var(--color-hairline)",
+                borderRadius: "var(--radius-sm)", color: "var(--color-ink)",
+                fontSize: 12, padding: "4px 8px", cursor: "pointer", outline: "none",
+                fontFeatureSettings: '"ss01"',
+              }}
+            >
+              <option value="all">All Evidence Types</option>
+              <option value="satellite">Satellite (GIS-verified)</option>
+              <option value="manual_upload">Manual Photo Comparison</option>
+              <option value="unavailable">Awaiting Evidence</option>
+            </select>
           </div>
         </div>
 
@@ -458,7 +480,7 @@ export default function Dashboard() {
           <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--color-hairline)", background: "var(--color-canvas-soft)" }}>
-                {["S.No.", "Work ID", "Project Name", "Sector", "Reported Progress", "Verification Priority", ""].map((col) => (
+                {["S.No.", "Work ID", "Project Name", "Sector", "Evidence", "Reported Progress", "Verification Priority", ""].map((col) => (
                   <th
                     key={col}
                     style={{
@@ -478,7 +500,7 @@ export default function Dashboard() {
               {filteredProjects.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     style={{ padding: "48px 20px", textAlign: "center", fontSize: 14, color: "var(--color-ink-mute)" }}
                   >
                     No projects found matching current filters.
@@ -550,6 +572,11 @@ export default function Dashboard() {
                       >
                         {p.project_type}
                       </span>
+                    </td>
+
+                    {/* Evidence source */}
+                    <td style={{ padding: "14px 20px" }}>
+                      <EvidenceBadge source={p.evidence_source} compact />
                     </td>
 
                     {/* Progress */}

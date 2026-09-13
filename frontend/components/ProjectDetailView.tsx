@@ -8,6 +8,7 @@ import { generateFieldReport } from "@/lib/pdfReport";
 import BeforeAfterSlider, { ChangeRegion } from "./BeforeAfterSlider";
 import { AnalysisResult, Evidence, ProjectDetail, Risk } from "@/types/project";
 import StatusBadge from "./StatusBadge";
+import EvidenceBadge from "./EvidenceBadge";
 
 const ProjectMap = dynamic(() => import("./ProjectMap"), { ssr: false });
 
@@ -101,9 +102,9 @@ export default function ProjectDetailView({ id }: { id: string }) {
   // ── Error state ─────────────────────────────────────────────────
   if (error) {
     return (
-      <div className="max-w-3xl mx-auto my-8 p-6" style={{ background: "#fff5f5", border: "1px solid #fecaca", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-1)" }}>
+      <div className="max-w-3xl mx-auto my-8 p-6" style={{ background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-1)" }}>
         <div className="flex items-start gap-4">
-          <div className="p-2.5 rounded-lg flex-shrink-0" style={{ background: "#fee2e2", color: "var(--color-ruby)" }}>
+          <div className="p-2.5 rounded-lg flex-shrink-0" style={{ background: "var(--color-danger-bg-strong)", color: "var(--color-ruby)" }}>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -198,6 +199,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
               {project.name}
             </h1>
             <StatusBadge status={project.status} />
+            <EvidenceBadge source={project.evidence_source} />
           </div>
 
           <p

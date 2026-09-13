@@ -34,10 +34,17 @@ main dashboard at `/`.
 - **Registry filter** — All Sources / MPLADS Registry (MoSPI) / Manual Field
   Evidence / Contractor / Other — maps to the `data_source` field
   (`india-mplads-works`, `manual-field-evidence`, `contractor-registered`).
-- **Pagination** — the registry runs to 1,000+ real rows, so the table loads
-  100 at a time (`GET /api/projects?page=&page_size=100`); use Previous/Next
-  to move between pages. The KPI cards always reflect the full registry
-  regardless of which page you're viewing.
+- **Evidence filter** — All Evidence Types / Satellite (GIS-verified) /
+  Manual Photo Comparison / Awaiting Evidence — maps to the `evidence_source`
+  field. This is the filter to use when you specifically want to see which
+  projects were screened from a real Sentinel-2 satellite pass versus a
+  contractor-supplied photo comparison; every row also carries a small
+  Evidence badge (🛰️ Satellite / 📷 Manual Upload / — Awaiting Evidence) so
+  the distinction is visible without filtering at all.
+- **Pagination** — the table loads 100 rows at a time
+  (`GET /api/projects?page=&page_size=100`); use Previous/Next to move
+  between pages. The KPI cards always reflect the full registry regardless
+  of which page you're viewing.
 
 ### The project detail page
 

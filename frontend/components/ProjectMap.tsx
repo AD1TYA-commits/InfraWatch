@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import "leaflet/dist/leaflet.css";
 import { ProjectSummary, GeoJSONFeatureCollection } from "@/types/project";
 import StatusBadge from "./StatusBadge";
+import EvidenceBadge from "./EvidenceBadge";
 import { useTheme } from "./ThemeProvider";
 import { resolveAssetUrl } from "@/lib/api";
 
@@ -244,6 +245,9 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
                     <p style={{ fontSize: 12, color: "var(--color-ink-mute)" }}>
                       <span style={{ fontWeight: 400, color: "var(--color-ink-secondary)" }}>Type:</span> {p.project_type}
                     </p>
+                    <div style={{ marginTop: 2 }}>
+                      <EvidenceBadge source={p.evidence_source} compact />
+                    </div>
                     <p style={{ fontSize: 12, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>
                       <span style={{ fontWeight: 400, color: "var(--color-ink-secondary)" }}>Progress:</span>{" "}
                       <strong style={{ color: "var(--color-primary)", fontWeight: 400 }}>{p.reported_progress}%</strong> reported

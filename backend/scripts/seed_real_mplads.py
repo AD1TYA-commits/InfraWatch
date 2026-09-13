@@ -1,21 +1,26 @@
 """
-Seeds the real, government-sourced MPLADS dataset directly into the database
-(same direct-DB pattern as scripts/seed_demo_data.py — no HTTP round trips,
-so 1,000 rows import in seconds instead of minutes).
+Seeds the real, government-sourced MPLADS legacy-evidence projects directly
+into the database (same direct-DB pattern as scripts/seed_demo_data.py — no
+HTTP round trips).
 
-Source: backend/data/processed/mplads_normalized.csv (1,000 rows, real MoSPI/SBI
-MPLADS records — see docs/MERGE-NOTES.md for full provenance). Only 3 of these
-1,000 rows have a government-verified GPS coordinate; the rest are imported
-honestly as evidence_source="unavailable" — real registry entries awaiting
-either a future geolocation or a contractor's manually-uploaded evidence.
+Source CSV: backend/data/processed/mplads_normalized.csv (1,000 real
+MoSPI/SBI MPLADS records — see docs/MERGE-NOTES.md for full provenance).
+That CSV is a *sanction/works registry*, not a live construction tracker:
+997 of its 1,000 rows have no GPS coordinate and no real self-reported
+progress figure at all, so importing all 1,000 as individual "projects"
+would mean fabricating a misleading 0% progress for records that simply
+don't carry that data. Instead, this script pulls out only the 3 rows that
+DO have a government-verified GPS coordinate — which are exactly the 3 rows
+with real manually-photographed before/after evidence — and leaves the rest
+of the CSV as reference data on disk, not registry entries.
 
-Additionally seeds 4 real legacy projects with manually-photographed
-before/after evidence (backend/app/manual_evidence/) — 3 of these are among
-the 1,000 CSV rows (and DO have a real coordinate, used only for map
-placement) and use the manually-supplied high-resolution photos rather than
-a 10m Sentinel-2 pass, since that's what actually shows the change clearly for
-small-scale works like these. The 4th (Tamil Nadu Udayarpalayam) isn't in the
-MPLADS CSV — it's a standalone real-world example with no coordinate at all.
+Seeds 4 real legacy projects total with manually-photographed before/after
+evidence (backend/app/manual_evidence/): 3 sourced from the CSV rows above
+(Goa Joggers Park, Goa Seraulim Crematorium, Nagaland Forest Colony Pond —
+real coordinate, used only for map placement) plus 1 standalone example not
+in the CSV at all (Tamil Nadu Udayarpalayam, no coordinate). All 4 are
+scored by the real change-detection model via manual-evidence upload, not a
+satellite pass — see docs/MERGE-NOTES.md for why.
 
 Usage:
     python -m scripts.seed_real_mplads
@@ -86,30 +91,35 @@ def seed():
     try:
         with open(CSV_PATH, newline="") as f:
             rows = list(csv.DictReader(f))
-        print(f"Importing {len(rows)} real MPLADS records from {CSV_PATH.name}...")
+        csv_rows_by_work_id = {r.get("work_id"): r for r in rows}
 
         manual_evidence_projects = []  # (Project, slug) pairs to analyze at the end
-        geocoded_count = 0
 
-        for i, row in enumerate(rows, start=1):
+        print(f"Seeding {len(MANUAL_EVIDENCE_FOR_CSV_ROWS)} real MPLADS project(s) with a verified "
+              f"GPS coordinate from {CSV_PATH.name} (the other {len(rows) - len(MANUAL_EVIDENCE_FOR_CSV_ROWS)} "
+              "rows in that CSV have no coordinate and no real progress figure, so they're left as "
+              "reference data on disk rather than fabricated registry entries)...")
+
+        for work_id, slug in MANUAL_EVIDENCE_FOR_CSV_ROWS.items():
+            row = csv_rows_by_work_id.get(work_id)
+            if row is None:
+                print(f"  WARNING: work_id {work_id} not found in CSV — skipping.")
+                continue
             lat, lon = _parse_float(row.get("latitude")), _parse_float(row.get("longitude"))
-            has_coords = lat is not None and lon is not None
-            work_id = row.get("work_id")
-
             project = Project(
                 name=row["name"][:250],
                 project_type=row.get("project_type") or "Public Works",
                 description=(row.get("description") or "")[:1000],
                 latitude=lat,
                 longitude=lon,
-                geometry_wkt=f"POINT({lon} {lat})" if has_coords else None,
+                geometry_wkt=f"POINT({lon} {lat})" if lat is not None and lon is not None else None,
                 start_date=_parse_date(row.get("start_date")),
                 expected_end_date=_parse_date(row.get("expected_end_date")),
                 approved_cost=_parse_float(row.get("sanctioned_amount")),
                 reported_progress=_parse_float(row.get("reported_progress")) or 0.0,
                 status="normal",
                 is_demo=0,
-                evidence_source="satellite" if has_coords else "unavailable",
+                evidence_source="manual_upload",
                 work_id=work_id,
                 mp_name=row.get("mp_name"),
                 state_name=row.get("state_name"),
@@ -122,18 +132,9 @@ def seed():
             )
             db.add(project)
             db.flush()  # assigns project.id without a full commit
-
-            if has_coords:
-                geocoded_count += 1
-            if work_id in MANUAL_EVIDENCE_FOR_CSV_ROWS:
-                manual_evidence_projects.append((project, MANUAL_EVIDENCE_FOR_CSV_ROWS[work_id]))
-
-            if i % 200 == 0:
-                db.commit()
-                print(f"  ...{i}/{len(rows)} imported")
+            manual_evidence_projects.append((project, slug))
 
         db.commit()
-        print(f"Imported {len(rows)} real MPLADS records ({geocoded_count} with a verified GPS coordinate).")
 
         # The 4th manual-evidence project isn't in the MPLADS CSV at all.
         tamil = Project(
