@@ -25,6 +25,24 @@ from pathlib import Path
 import httpx
 
 DEFAULT_CSV = Path(__file__).resolve().parents[3] / "satellite-service" / "samples" / "pmgsy_real_projects.csv"
+SEED_EMAIL = "seed-importer@infrawatch.local"
+SEED_PASSWORD = "seed-importer-not-a-real-account"
+
+
+def _get_or_create_token(base_url: str) -> str:
+    """Project creation is contractor-authenticated; this script needs a
+    token to seed data. Reuses (or creates) one throwaway seeding account
+    rather than requiring a human to pass one in by hand."""
+    resp = httpx.post(f"{base_url}/api/auth/login", json={"email": SEED_EMAIL, "password": SEED_PASSWORD}, timeout=15.0)
+    if resp.status_code == 200:
+        return resp.json()["access_token"]
+    resp = httpx.post(
+        f"{base_url}/api/auth/register",
+        json={"email": SEED_EMAIL, "password": SEED_PASSWORD, "role": "contractor", "full_name": "Data Import Bot"},
+        timeout=15.0,
+    )
+    resp.raise_for_status()
+    return resp.json()["access_token"]
 
 
 def main():
@@ -38,6 +56,9 @@ def main():
     if not csv_path.exists():
         print(f"CSV not found: {csv_path}")
         sys.exit(1)
+
+    token = _get_or_create_token(args.base_url)
+    headers = {"Authorization": f"Bearer {token}"}
 
     with open(csv_path, newline="") as f:
         rows = list(csv.DictReader(f))
@@ -60,7 +81,7 @@ def main():
             "longitude": float(row["longitude"]),
             "reported_progress": float(row["reported_progress"]),
         }
-        resp = httpx.post(f"{args.base_url}/api/projects", json=payload, timeout=30.0)
+        resp = httpx.post(f"{args.base_url}/api/projects", json=payload, headers=headers, timeout=30.0)
         resp.raise_for_status()
         project = resp.json()
         created.append(project)
@@ -74,7 +95,7 @@ def main():
     for i, project in enumerate(created, start=1):
         start = time.time()
         try:
-            resp = httpx.post(f"{args.base_url}/api/projects/{project['id']}/analyze", timeout=120.0)
+            resp = httpx.post(f"{args.base_url}/api/projects/{project['id']}/analyze", headers=headers, timeout=120.0)
             resp.raise_for_status()
             result = resp.json()
             duration = round(time.time() - start, 1)

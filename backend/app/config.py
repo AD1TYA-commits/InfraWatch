@@ -1,9 +1,9 @@
 """
 Central configuration for InfraWatch backend.
 
-All environment-driven settings live here. Risk-engine thresholds are kept
-in one place (see RISK_THRESHOLDS below) per the project spec: no scattered,
-unexplained magic numbers in the anomaly logic.
+All environment-driven settings live here, plus the risk engine's composite
+weights (see RISK_WEIGHTS below) so nothing in app/risk_engine.py is an
+unexplained inline magic number.
 """
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -50,21 +50,26 @@ class Settings(BaseSettings):
     api_title: str = "InfraWatch API"
     api_version: str = "0.1.0-mvp"
 
+    # Auth. JWT_SECRET_KEY MUST be overridden via env var for any deployment
+    # beyond a single developer's machine — the default here only exists so
+    # local dev works with zero setup, never reuse it anywhere reachable.
+    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "dev-only-insecure-secret-change-me")
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = int(os.getenv("JWT_EXPIRE_MINUTES", str(60 * 24 * 7)))  # 7 days
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 settings = Settings()
 
 # ---------------------------------------------------------------------------
-# Risk / anomaly engine configuration (Phase 2+, defined now so nothing here
-# is an unexplained inline weight later).
+# Risk / anomaly engine configuration
 # ---------------------------------------------------------------------------
-RISK_THRESHOLDS = {
-    # Percentage-point deviation between reported and observed progress.
-    "deviation_watch": 15,     # >= 15 pts difference -> WATCH
-    "deviation_high": 25,      # >= 25 pts difference -> HIGH
-    "deviation_critical": 40,  # >= 40 pts difference -> CRITICAL
-    # Days behind the expected milestone schedule.
-    "schedule_slip_watch_days": 30,
-    "schedule_slip_high_days": 90,
+# Composite risk score weights (must sum to 1.0) — how much each dimension
+# contributes to the overall 0-100 risk score in app/risk_engine.py.
+RISK_WEIGHTS = {
+    "satellite_discrepancy": 0.50,
+    "financial": 0.20,
+    "timeline": 0.15,
+    "duplicate_work": 0.15,
 }

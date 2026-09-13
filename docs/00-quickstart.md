@@ -1,117 +1,118 @@
-# Quickstart — Get This Running in Under 5 Minutes
-
-**Read this first.** This is the only doc you need to actually get the
-project running. Everything else in `docs/` is background reading for once
-it's already up — don't start there.
-
-There is exactly **one command** to run. You do not need to create a
-database, download any dataset, or configure anything by hand — all of that
-happens automatically the first time you run it.
+# Quickstart — Get This Running
 
 ## Before you start
 
-You need three things installed on your machine:
-- **Python 3.10+** — check with `python3 --version`
-- **Node.js 18+** — check with `node --version`
-- **Git** (to have cloned the repos in the first place)
-
-If any of those commands fail ("command not found"), install that one thing
-first, then come back here. Nothing else needs installing by hand — the
-script below installs every Python/Node dependency itself.
+You need `python3` (3.10+), `node` (18+) and `npm` installed. Nothing else —
+no database server to install, no dataset to download by hand, no account to
+create first.
 
 ## Folder layout — this part matters
 
-You need **two folders, sitting next to each other** (same parent folder):
+`start-all.sh` expects **InfraWatch** and **satellite-service** to be sibling
+folders under the same parent directory:
 
-```
-some-folder-you-choose/
-├── InfraWatch/            ← this repo
-└── satellite-service/     ← the other repo
+```text
+some-parent-directory/
+├── InfraWatch/            <- this repo
+└── satellite-service/     <- the separate microservice repo
 ```
 
-If you only cloned `InfraWatch`, go get `satellite-service` too and put it
-right next to it, not inside it. The startup script looks for
-`../satellite-service` relative to this repo — if that folder isn't there,
-it'll tell you exactly that instead of failing mysteriously.
+If `satellite-service` isn't there, `./start-all.sh` fails immediately with a
+clear error telling you what to fix, instead of a confusing error mid-setup.
 
 ## The one command
 
-Open a terminal, go into the `InfraWatch` folder, and run:
+From inside `InfraWatch/`:
 
 ```bash
-./start-all.sh
+./start-all.sh          # demo mode — bundled sample images, works offline
+./start-all.sh real     # real mode — live Sentinel-2 imagery, needs internet
 ```
 
-That's it. First time you run it, it'll take a few minutes (installing
-everything). Every time after that, it starts in seconds.
+First run does full setup automatically: creates Python virtualenvs for the
+backend and satellite-service, installs backend/frontend/satellite-service
+dependencies, and writes working `.env`/`.env.local` files from the
+`.env.example` templates. This can take a few minutes. Every run after that
+starts in seconds.
 
-When it's ready, you'll see three URLs printed. Open the first one:
+On first boot, the backend automatically seeds itself — nothing to prepare
+by hand:
 
-- **http://localhost:3000** ← the actual dashboard, open this in your browser
-- http://localhost:8000/docs (backend API, only if you're curious)
-- http://localhost:8001/docs (satellite microservice API, only if you're curious)
+- 6 synthetic `[DEMO]` projects with bundled before/after image pairs
+- the real ~1,000-row MPLADS works registry (`backend/data/processed/mplads_normalized.csv`),
+  including 4 real legacy projects with real manually-photographed
+  before/after evidence
+- one demo analyst account and one demo contractor account
 
-You'll see a dashboard with 6 sample projects already loaded, a map, and
-KPI cards — **nobody had to create that data by hand**, the backend creates
-it automatically the moment it starts up.
+This seeding is guarded so it only ever runs against a genuinely empty
+database — restarting the backend, or re-running `docker-compose up` against
+an existing volume, never re-seeds or wipes real data.
 
-**To stop everything**: go back to that terminal and press `Ctrl+C`. It
-shuts down all three services cleanly.
+In `real` mode only, a 24-project real PMGSY facility-location sample also
+imports in the background on first run (needs internet, ~5-10 minutes) — see
+`/tmp/infrawatch-logs/pmgsy-import.log`.
+
+Once it's up:
+
+```text
+Dashboard:               http://localhost:3000
+Backend API docs:        http://localhost:8000/docs
+satellite-service docs:  http://localhost:8001/docs
+```
+
+Give it 30-60 seconds on first run to finish starting all three services.
+Press `Ctrl+C` in the terminal running `start-all.sh` to stop everything
+cleanly.
+
+### Demo accounts (seeded automatically — evaluation only, never reuse in production)
+
+| Role | Email | Password |
+|---|---|---|
+| Analyst | `analyst@infrawatch.local` | `demo-analyst-2025` |
+| Contractor | `contractor@infrawatch.local` | `demo-contractor-2025` |
+
+Sign in as the analyst to browse the full registry, or as the contractor to
+register a new project or upload evidence. You can also register your own
+account from `/register` — pick either role.
 
 ## Two modes — which one do I want?
 
-```bash
-./start-all.sh          # demo mode (default) — bundled sample images, works
-                         # with no internet, cannot fail, use this for your
-                         # first run and for any offline demo/presentation
+- **demo** (default): bundled sample image pairs, zero network calls for
+  imagery, always reliable — the right choice for a first look or an offline
+  demo.
+- **real**: `SATELLITE_MODE=real` delegates every non-demo project's
+  analysis to the satellite-service microservice, which fetches actual
+  Sentinel-2 10m band imagery via a public STAC catalog and runs the real
+  PlanAura change-detection model. Needs internet access; first analysis per
+  project takes roughly 10-30 seconds.
 
-./start-all.sh real     # real mode — every project gets analyzed against
-                         # actual live Sentinel-2 satellite imagery. Needs
-                         # internet access. This is the "real" feature —
-                         # use this once you want to show the actual AI
-                         # pipeline working, not just the UI.
-```
-
-You can switch between them any time — just stop (`Ctrl+C`) and re-run with
-the other argument. Nothing needs to be reset or cleaned up in between.
+`start-all.sh` flips this by editing `backend/.env`'s `SATELLITE_MODE` line
+for you — no manual `.env` editing needed either way.
 
 ## Something went wrong — now what?
 
-1. **Read the actual error message the script printed.** It's usually
-   exactly what's wrong (e.g. "satellite-service not found" means the
-   folder layout above isn't right).
-2. Check the log files it mentions, under `/tmp/infrawatch-logs/` — this
-   shows you the real error from whichever of the three services is
-   unhappy, not just "something broke."
-3. If a port is already in use (you ran this before and it's still
-   running somewhere) — go find that terminal and press Ctrl+C there
-   first, or just close that terminal window.
-4. Still stuck? See the **Troubleshooting** section at the bottom of
-   [03-developer-setup.md](03-developer-setup.md) — it lists the specific
-   failure modes we've actually hit while building this and how to fix each
-   one. Don't guess — that doc was written from real mistakes, not
-   hypothetical ones.
+Logs for all three services are written under `/tmp/infrawatch-logs/`
+(`backend.log`, `frontend.log`, `satellite-service.log`, and in real mode
+`pmgsy-import.log`). Check those first.
+
+Common issues:
+
+- **"could not find ../satellite-service"** — clone `satellite-service` as a
+  sibling folder next to `InfraWatch/` (see Folder layout above).
+- **Port already in use** — `start-all.sh` kills anything already listening
+  on 8000/8001/3000 before starting; if that fails, find and stop the
+  process manually (`lsof -ti tcp:8000`).
+- **Login/register calls hang or time out** — confirm the backend is
+  actually up (`curl http://localhost:8000/api/health`) and that
+  `frontend/.env.local`'s `NEXT_PUBLIC_API_BASE_URL` points at it.
 
 ## What NOT to do
 
-- Don't manually create a database, don't manually download any satellite
-  imagery, don't manually add the 6 demo projects — all of that is
-  automatic. If you find yourself trying to do any of that by hand, stop —
-  something else is wrong and you're compensating for it, not fixing it.
-- Don't edit `.env` files unless a doc specifically tells you to for a
-  specific reason. The defaults are already correct.
-- Don't run `pip install` or `npm install` yourself outside of
-  `./start-all.sh` (or the individual `./setup.sh` scripts, same thing) —
-  if dependencies are missing, re-running the script fixes it; installing
-  things ad hoc is how environments get into a state nobody can reproduce.
+- Don't reuse the demo account passwords, or `JWT_SECRET_KEY`'s
+  development default, anywhere reachable outside your own machine.
+- Don't run `real` mode expecting instant results — a live Sentinel-2 fetch
+  and model run takes real seconds, not milliseconds.
 
 ## I want to understand what I'm running, not just start it
 
-Once it's up and you've clicked around, come back and read, in order:
-[01-project-overview.md](01-project-overview.md) →
-[02-user-guide.md](02-user-guide.md) →
-[03-developer-setup.md](03-developer-setup.md) (this has the manual,
-step-by-step version of what `start-all.sh` does automatically, in case you
-ever need to run one piece on its own) →
-[04-testing-and-qa.md](04-testing-and-qa.md) →
-[05-architecture-and-api-reference.md](05-architecture-and-api-reference.md).
+Read [01-project-overview.md](01-project-overview.md) next.

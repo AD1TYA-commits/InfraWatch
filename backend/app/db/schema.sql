@@ -6,13 +6,26 @@
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 
+CREATE TABLE IF NOT EXISTS users (
+    id                  SERIAL PRIMARY KEY,
+    email               TEXT NOT NULL UNIQUE,
+    hashed_password     TEXT NOT NULL,
+    role                TEXT NOT NULL, -- 'analyst' | 'contractor'
+    full_name           TEXT NOT NULL,
+    organization        TEXT,
+    created_at          TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS projects (
     id                  SERIAL PRIMARY KEY,
     name                TEXT NOT NULL,
     project_type        TEXT NOT NULL,
     description         TEXT DEFAULT '',
-    latitude            DOUBLE PRECISION NOT NULL,
-    longitude           DOUBLE PRECISION NOT NULL,
+    -- Nullable: real government project records very often have no published
+    -- GPS coordinate. See evidence_source below for how such a project still
+    -- gets screened (manual upload) or honestly marked as awaiting evidence.
+    latitude            DOUBLE PRECISION,
+    longitude           DOUBLE PRECISION,
     -- Keep the local SQLite and PostgreSQL schemas aligned. The application
     -- stores portable WKT here; PostGIS can still be used for later spatial
     -- migrations without blocking the zero-setup demo.
@@ -22,7 +35,18 @@ CREATE TABLE IF NOT EXISTS projects (
     approved_cost       DOUBLE PRECISION,
     reported_progress   DOUBLE PRECISION DEFAULT 0,
     status              TEXT DEFAULT 'normal',
-    is_demo             BOOLEAN DEFAULT TRUE
+    is_demo             BOOLEAN DEFAULT TRUE,
+    evidence_source     TEXT DEFAULT 'unavailable', -- 'satellite' | 'manual_upload' | 'unavailable'
+    work_id             TEXT UNIQUE,
+    mp_name             TEXT,
+    state_name          TEXT,
+    constituency_name   TEXT,
+    district_name       TEXT,
+    implementing_agency TEXT,
+    sanctioned_amount   DOUBLE PRECISION,
+    actual_expenditure  DOUBLE PRECISION,
+    data_source         TEXT,
+    owner_user_id       INTEGER REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS milestones (

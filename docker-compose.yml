@@ -26,6 +26,9 @@ services:
       COPERNICUS_CLIENT_ID: ${COPERNICUS_CLIENT_ID:-}
       COPERNICUS_CLIENT_SECRET: ${COPERNICUS_CLIENT_SECRET:-}
       SATELLITE_SERVICE_URL: http://satellite-service:8001
+      # Change this for any real deployment — the default is dev-only and
+      # intentionally insecure so a forgotten .env doesn't silently ship it.
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-only-insecure-secret-change-me}
     ports:
       - "8000:8000"
     depends_on:
@@ -33,8 +36,12 @@ services:
         condition: service_healthy
       satellite-service:
         condition: service_started
-    command: >
-      sh -c "python -m scripts.seed_demo_data && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    # Demo data (6 sample projects), the real 1,000-row MPLADS registry, and
+    # one demo analyst/contractor account are all seeded automatically on
+    # first boot by app/main.py — nothing to run by hand here. Re-running
+    # `docker-compose up` against an existing volume is safe: seeding only
+    # happens once, against a genuinely empty database.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   # Standalone microservice — kept in its own sibling folder/repo on purpose,
   # not merged into backend/. See ../satellite-service/docs/04-integration.md.

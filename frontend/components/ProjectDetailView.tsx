@@ -3,18 +3,26 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { analyzeProject, getEvidence, getProject, resolveAssetUrl } from "@/lib/api";
+import { analyzeProject, getEvidence, getProject, getRisk, resolveAssetUrl } from "@/lib/api";
 import { generateFieldReport } from "@/lib/pdfReport";
 import BeforeAfterSlider, { ChangeRegion } from "./BeforeAfterSlider";
-import { AnalysisResult, Evidence, ProjectDetail } from "@/types/project";
+import { AnalysisResult, Evidence, ProjectDetail, Risk } from "@/types/project";
 import StatusBadge from "./StatusBadge";
 
 const ProjectMap = dynamic(() => import("./ProjectMap"), { ssr: false });
+
+const RISK_LEVEL_COLOR: Record<string, string> = {
+  LOW: "#10b981",
+  MEDIUM: "#eab308",
+  HIGH: "#ef4444",
+  CRITICAL: "#a3241d",
+};
 
 export default function ProjectDetailView({ id }: { id: string }) {
   const [project, setProject]     = useState<ProjectDetail | null>(null);
   const [analysis, setAnalysis]   = useState<AnalysisResult | null>(null);
   const [evidence, setEvidence]   = useState<Evidence | null>(null);
+  const [risk, setRisk]           = useState<Risk | null>(null);
   const [error, setError]         = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [ingesting, setIngesting] = useState(false);
@@ -27,6 +35,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
       .then((p) => {
         setProject(p);
         getEvidence(id).then(setEvidence).catch(() => {});
+        getRisk(id).then(setRisk).catch(() => {});
         runAnalysis();
       })
       .catch((e) => setError(e.message));
@@ -39,6 +48,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
       const result = await analyzeProject(id);
       setAnalysis(result);
       setEvidence(await getEvidence(id));
+      getRisk(id).then(setRisk).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Analysis could not be completed");
     } finally {
@@ -93,7 +103,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
     return (
       <div className="max-w-3xl mx-auto my-8 p-6" style={{ background: "#fff5f5", border: "1px solid #fecaca", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-1)" }}>
         <div className="flex items-start gap-4">
-          <div className="p-2.5 rounded-lg flex-shrink-0" style={{ background: "#fee2e2", color: "#ea2261" }}>
+          <div className="p-2.5 rounded-lg flex-shrink-0" style={{ background: "#fee2e2", color: "var(--color-ruby)" }}>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -196,7 +206,11 @@ export default function ProjectDetailView({ id }: { id: string }) {
           >
             <span>ID #{project.id}</span>
             <span>·</span>
-            <span>{project.latitude.toFixed(4)}°N, {project.longitude.toFixed(4)}°E</span>
+            <span>
+              {project.latitude != null && project.longitude != null
+                ? `${project.latitude.toFixed(4)}°N, ${project.longitude.toFixed(4)}°E`
+                : "No GPS on record"}
+            </span>
             <span>·</span>
             <span style={{ color: "var(--color-primary)", fontWeight: 400 }}>{project.project_type}</span>
           </p>
@@ -308,6 +322,56 @@ export default function ProjectDetailView({ id }: { id: string }) {
         </p>
       </div>
 
+      {/* ── Risk Assessment ──────────────────────────────────────── */}
+      {risk && (
+        <div style={{ ...cardStyle, padding: 20 }}>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 400, letterSpacing: "0.1px", textTransform: "uppercase", color: "var(--color-ink-mute)", marginBottom: 4 }}>
+                Composite Risk Assessment
+              </p>
+              <p style={{ fontSize: 11, color: "var(--color-ink-mute)" }}>
+                Deterministic scoring — cost overrun, timeline delay, duplicate-work similarity &amp; satellite discrepancy. Not a fraud determination.
+              </p>
+            </div>
+            <span
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "6px 14px", borderRadius: "var(--radius-pill)",
+                background: `${RISK_LEVEL_COLOR[risk.risk_level]}1a`,
+                color: RISK_LEVEL_COLOR[risk.risk_level],
+                fontSize: 13, fontWeight: 500,
+              }}
+            >
+              <span className="tabular" style={{ fontFeatureSettings: '"tnum"' }}>{risk.risk_score.toFixed(1)}/100</span>
+              <span>·</span>
+              {risk.risk_level}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {risk.factors.map((f) => (
+              <div key={f.name} style={{ padding: 14, background: "var(--color-canvas-soft)", border: "1px solid var(--color-hairline)", borderRadius: "var(--radius-md)" }}>
+                <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1px", color: "var(--color-ink-mute)", marginBottom: 6 }}>
+                  {f.name.replace(/_/g, " ")}
+                </p>
+                <p className="tabular" style={{ fontSize: 18, fontWeight: 300, color: "var(--color-ink)", fontFeatureSettings: '"tnum"' }}>
+                  {f.score.toFixed(0)}
+                </p>
+                <p style={{ fontSize: 10, color: "var(--color-ink-mute)", marginTop: 2 }}>weight {(f.weight * 100).toFixed(0)}%</p>
+                <p style={{ fontSize: 11, color: "var(--color-ink-secondary)", marginTop: 6, lineHeight: 1.4 }}>{f.explanation}</p>
+              </div>
+            ))}
+          </div>
+
+          {risk.duplicate_candidates && risk.duplicate_candidates.length > 0 && (
+            <p style={{ fontSize: 11, color: "var(--color-ink-mute)", marginTop: 12 }}>
+              {risk.duplicate_candidates.length} potentially similar work{risk.duplicate_candidates.length === 1 ? "" : "s"} found in the same district — flagged for human review, not confirmed duplication.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* ── Main Tab Panel ───────────────────────────────────────── */}
       <div style={{ ...cardStyle, overflow: "hidden" }}>
         {/* Tab header */}
@@ -351,7 +415,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
                 display: "flex", alignItems: "center", gap: 6,
                 background: activeTab === tab.id ? "var(--color-primary)" : "transparent",
                 color: activeTab === tab.id ? "var(--color-on-primary)" : "var(--color-ink-mute)",
-                boxShadow: activeTab === tab.id ? "0 2px 8px rgba(83,58,253,0.25)" : "none",
+                boxShadow: activeTab === tab.id ? "0 2px 8px rgba(30,58,95,0.25)" : "none",
                 transition: "all 0.15s ease",
                 fontFeatureSettings: '"ss01"',
               }}
@@ -403,7 +467,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
                     background: "var(--color-primary)", color: "var(--color-on-primary)",
                     display: "flex", alignItems: "center", gap: 8,
                     opacity: analyzing ? 0.6 : 1, flexShrink: 0,
-                    boxShadow: "0 2px 10px rgba(83,58,253,0.3)",
+                    boxShadow: "0 2px 10px rgba(30,58,95,0.3)",
                   }}
                 >
                   {analyzing ? (
@@ -437,7 +501,9 @@ export default function ProjectDetailView({ id }: { id: string }) {
                       <span style={{ fontSize: 12, color: "var(--color-ink-secondary)", fontWeight: 400 }}>Image comparison ready</span>
                     </div>
                     <span className="tabular" style={{ fontSize: 12, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>
-                      {project.latitude.toFixed(4)}°N, {project.longitude.toFixed(4)}°E
+                      {project.latitude != null && project.longitude != null
+                        ? `${project.latitude.toFixed(4)}°N, ${project.longitude.toFixed(4)}°E`
+                        : "Manually-supplied evidence (no GPS)"}
                     </span>
                   </div>
 
@@ -501,9 +567,9 @@ export default function ProjectDetailView({ id }: { id: string }) {
                             onClick={scrollToMap}
                             style={{
                               ...pillBtn,
-                              background: "#ea2261", color: "#fff",
+                              background: "var(--color-gold)", color: "#fff",
                               display: "flex", alignItems: "center", gap: 6,
-                              boxShadow: "0 2px 8px rgba(234,34,97,0.3)",
+                              boxShadow: "0 2px 8px rgba(184,134,11,0.3)",
                             }}
                           >
                             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -637,11 +703,17 @@ export default function ProjectDetailView({ id }: { id: string }) {
                       </h4>
                       <span className="tabular" style={{ fontSize: 11, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>EPSG:4326</span>
                     </div>
-                    <ProjectMap
-                      projects={[project]}
-                      geojsonOverlay={analysis.geojson_overlay}
-                      selectedProjectId={project.id}
-                    />
+                    {project.latitude != null && project.longitude != null ? (
+                      <ProjectMap
+                        projects={[project]}
+                        geojsonOverlay={analysis.geojson_overlay}
+                        selectedProjectId={project.id}
+                      />
+                    ) : (
+                      <p style={{ fontSize: 13, color: "var(--color-ink-mute)", textAlign: "center", padding: "32px 0", border: "1px dashed var(--color-hairline)", borderRadius: "var(--radius-md)" }}>
+                        No GPS coordinate is on record for this project — evidence was compared from manually-supplied before/after photographs instead of a satellite map location.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

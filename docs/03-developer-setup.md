@@ -1,137 +1,102 @@
 # Developer Setup — Run and Build This From Scratch
 
-This walks a developer with zero prior context through getting the entire
-system (InfraWatch + satellite-service) running locally, understanding the
-codebase layout, and making common changes. If you just want to *use* the
-app, see [02-user-guide.md](02-user-guide.md) instead.
-
 ## 0. What you're setting up
 
-Two separate projects that talk to each other over HTTP:
+Three independently-runnable services:
 
-```
-some-folder/
-├── InfraWatch/            (this repo — dashboard + backend)
-│   ├── backend/           FastAPI + SQLAlchemy + SQLite/Postgres
-│   ├── frontend/          Next.js + TypeScript + Leaflet
-│   └── docs/              you are here
-└── satellite-service/     (sibling repo/folder — satellite fetch + ML model)
-```
+| Service | Folder | Port | Stack |
+|---|---|---|---|
+| Frontend | `InfraWatch/frontend/` | 3000 | Next.js 14 + TypeScript + Tailwind |
+| Backend | `InfraWatch/backend/` | 8000 | FastAPI + SQLAlchemy + SQLite/Postgres |
+| satellite-service | `satellite-service/` (sibling repo) | 8001 | FastAPI + rasterio + pretrained CNN |
 
-They must be **sibling folders** (same parent directory) for the default
-configuration to line up — `docker-compose.yml` references
-`../satellite-service` as a build context.
+`InfraWatch` and `satellite-service` must be sibling folders under the same
+parent directory — `start-all.sh`, `backend/.env.example`, and
+`docker-compose.yml` all assume this layout.
 
 ## 1. Prerequisites
 
-| Tool | Needed for | Check with |
-|---|---|---|
-| Python 3.10+ | Both backends | `python3 --version` |
-| Node.js 18+ | Frontend | `node --version` |
-| npm | Frontend | `npm --version` |
-| Git | Cloning | `git --version` |
-| Docker + Docker Compose | Optional, for the one-command setup | `docker --version` |
+- Python 3.10+
+- Node.js 18+ and npm
+- (Optional, for Docker Compose) Docker + Docker Compose
 
-On macOS, if `rasterio` (used by both backends for satellite imagery) fails
-to install, install GDAL first: `brew install gdal`.
+No database server install is required for local dev — SQLite is the
+zero-setup default. Docker Compose uses PostGIS instead (see below).
 
 ## 2. Get both codebases
 
 ```bash
-git clone <infrawatch-repo-url> InfraWatch
-git clone <satellite-service-repo-url> satellite-service
+git clone https://github.com/AD1TYA-commits/InfraWatch.git InfraWatch
+git clone https://github.com/chiragawasthi17/satellite-service.git satellite-service
+# both now sit as siblings under the same parent directory
 ```
-(Put them side by side, as shown above.)
 
 ## 3. Run everything — the automated one-command way (recommended)
 
 ```bash
 cd InfraWatch
-./start-all.sh          # demo mode (default): bundled images, no internet needed
-./start-all.sh real     # real mode: live Sentinel-2 imagery via satellite-service
+./start-all.sh          # demo mode
+./start-all.sh real     # real mode (live Sentinel-2, needs internet)
 ```
 
-This is a plain bash script (`start-all.sh` at the repo root) that does
-everything the manual steps in §4 do, automatically and in the right order:
-- Creates each service's virtualenv/`node_modules` on first run only (checks
-  if they already exist — safe to re-run any time, later runs skip straight
-  to starting).
-- Copies each `.env.example` to a working `.env`/`.env.local` if one isn't
-  there yet — no environment variables need hand-editing for a working demo.
-- Flips `SATELLITE_MODE` between `demo`/`real` based on the argument you
-  pass, by editing `backend/.env` itself (`sed`) — you never touch that file.
-- Starts satellite-service (8001), the InfraWatch backend (8000, which
-  auto-seeds its demo database and 6 sample projects the moment it starts —
-  nothing to prepare or download by hand), and the frontend (3000).
-- Prints all three URLs once they're up, and where their logs are
-  (`/tmp/infrawatch-logs/`) if something looks wrong.
-- `Ctrl+C` stops all three cleanly (kills whatever is bound to ports
-  8000/8001/3000, not just the wrapper processes — verified to actually
-  free the ports, not just look like it stopped).
-
-Each sub-project also has its own `setup.sh` (one-time install) and `run.sh`
-(start just that one) if you want to run a single piece on its own —
-`start-all.sh` is just those three, orchestrated.
+See [00-quickstart.md](00-quickstart.md) for full detail on what this does
+and how to read the logs it writes to `/tmp/infrawatch-logs/`.
 
 ## 4. Run everything manually (useful for understanding, or active development on one piece)
 
-Manual setup gives faster reload loops and clearer error messages while
-you're actively changing one service's code. Three terminals — this is
-exactly what `./start-all.sh` automates for you:
+satellite-service:
 
-**Terminal 1 — satellite-service:**
 ```bash
 cd satellite-service
-./setup.sh   # first time only — creates .venv, installs deps, copies .env
-./run.sh     # or manually: source .venv/bin/activate && uvicorn app:app --reload --port 8001
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # optionally set GEMINI_API_KEY
+uvicorn app:app --reload --port 8001
 ```
-(First run downloads pretrained model weights — a one-time delay of a few
-seconds to a minute depending on your connection.)
 
-**Terminal 2 — InfraWatch backend:**
+InfraWatch backend, in a second terminal:
+
 ```bash
 cd InfraWatch/backend
-./setup.sh   # first time only
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
 # Edit .env: set SATELLITE_MODE=real to test against real satellite imagery;
 #   leave SATELLITE_MODE=demo for zero-network, instant startup using bundled
 #   demo images (this is the default already in .env.example).
-./run.sh     # or manually: source .venv/bin/activate && uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000
 ```
-The database auto-creates and seeds 6 demo projects on first run (SQLite
-file `infrawatch.db`, zero setup needed).
 
-**Terminal 3 — Frontend:**
+The database is created and auto-seeded (demo projects, the real MPLADS
+registry, demo accounts) the first time the app starts against an empty
+database — see `app/main.py`.
+
+InfraWatch frontend, in a third terminal:
+
 ```bash
 cd InfraWatch/frontend
-./setup.sh   # first time only
-./run.sh     # or manually: npm run dev
+cp .env.example .env.local
+npm install
+npm run dev
 ```
-Open http://localhost:3000.
 
 ## 3b. Run everything with Docker Compose (alternative — no local Python/Node needed at all)
 
 ```bash
 cd InfraWatch
-cp backend/.env.example backend/.env       # edit if you have a Gemini key
 docker compose up --build
 ```
 
-This starts, in order: a PostGIS-enabled Postgres database, the
-satellite-service microservice, the InfraWatch backend (seeding demo
-projects on first boot), and the Next.js frontend. Once it's up:
-- Frontend: http://localhost:3000
-- Backend API + docs: http://localhost:8000/docs
-- satellite-service API docs: http://localhost:8001/docs
-
-Set `SATELLITE_MODE=real` (as an environment variable before `docker compose
-up`, or in `backend/.env`) to have every project analyzed against live
-Sentinel-2 imagery instead of bundled demo images.
-
-Use this instead of `./start-all.sh` if you'd rather not install
-Python/Node locally at all — Docker Desktop is the only prerequisite. It's
-slower to first build (several minutes, mostly satellite-service's
-PyTorch/GDAL image) but the containers are then fully isolated from your
-machine's own Python/Node setup.
+This starts PostgreSQL+PostGIS, the backend, satellite-service, and the
+frontend as containers (see `docker-compose.yml`). The backend's
+`DATABASE_URL` is set to the Postgres container automatically; the same
+SQLAlchemy ORM code runs unchanged (geometry is stored as WKT text at the
+ORM layer either way — see the note in `backend/app/models/models.py`).
+Auto-seeding is guarded the same way as local dev: it only runs against a
+genuinely empty database, so re-running `docker compose up` against an
+existing volume never re-seeds or wipes data. Set `SATELLITE_MODE=real` and
+`GEMINI_API_KEY` as environment variables before `up` if you want real
+imagery; otherwise it defaults to `demo`.
 
 ## 5. Environment variables reference
 
@@ -140,121 +105,135 @@ machine's own Python/Node setup.
 | Variable | Purpose | Default |
 |---|---|---|
 | `DATABASE_URL` | DB connection string | `sqlite:///./infrawatch.db` |
-| `SATELLITE_MODE` | `demo` (bundled images) or `real` (live satellite-service calls) | `demo` |
-| `SATELLITE_SERVICE_URL` | Where satellite-service is reachable | `http://localhost:8001` |
-| `GEMINI_API_KEY` | Enables Gemini narration in the legacy demo-mode analyzer | empty |
-| `AI_VISION_MODEL` | Gemini model id (demo-mode analyzer only) | `gemini-2.5-flash-lite` |
-| `CORS_ORIGINS` | Comma-separated browser origins allowed to call this API | `http://localhost:3000` |
+| `SATELLITE_MODE` | `demo` or `real` | `demo` |
+| `SATELLITE_PROVIDER` | Legacy in-process provider name (only relevant to the demo-mode fallback path) | `planetary-computer` |
+| `SATELLITE_SERVICE_URL` | Base URL of the satellite-service microservice (`real` mode only) | `http://localhost:8001` |
+| `MAX_CLOUD_PERCENTAGE` | Demo-mode fallback path's cloud filter | `20` |
+| `GEMINI_API_KEY` | Enables Gemini vision analysis in the legacy demo-mode fallback analyzer | empty |
+| `AI_VISION_PROVIDER` / `AI_VISION_MODEL` | Legacy demo-mode analyzer model identifiers | `gemini` / `gemini-2.5-flash-lite` |
+| `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000` |
+| `AI_MAX_CANDIDATES`, `AI_CROP_SIZE`, `AI_CONTEXT_MARGIN`, `AI_MIN_CV_CONFIDENCE`, `AI_ENABLE_CACHE` | Demo-mode fallback path's local OpenCV/crop tuning | see `app/config.py` |
+| `JWT_SECRET_KEY` | Signs and verifies auth tokens | `dev-only-insecure-secret-change-me` — **override this for any deployment reachable beyond your own machine**; not present in `.env.example` by default, so set it explicitly |
+| `JWT_EXPIRE_MINUTES` | Token lifetime | `10080` (7 days) |
+
+Note: `JWT_ALGORITHM` is fixed to `HS256` in code (`app/config.py`), not
+environment-configurable.
 
 ### `InfraWatch/frontend/.env.local`
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `NEXT_PUBLIC_API_BASE_URL` | InfraWatch backend URL | `http://localhost:8000` |
+| `NEXT_PUBLIC_API_BASE_URL` | Backend base URL | `http://localhost:8000` |
 
 ### `satellite-service/.env`
 
-See satellite-service's own `.env.example` and `docs/02-getting-started.md`
-— key ones are `GEMINI_API_KEY` (optional; falls back to a templated
-summary without it), `WINDOW_KM` / `OUTPUT_SIZE_PX` (AOI size and imagery
-resolution), and `CHANGE_MIN_CONFIDENCE` (detection sensitivity).
+| Variable | Purpose | Default |
+|---|---|---|
+| `WINDOW_KM` | AOI half-width fetched around each project, km | `1.28` |
+| `OUTPUT_SIZE_PX` | Output raster size in pixels | `256` |
+| `MAX_CLOUD_PERCENTAGE` | STAC cloud-cover filter | `20` |
+| `CHANGE_MIN_CONFIDENCE` | Heatmap threshold for "changed" | `0.35` |
+| `CHANGE_MIN_AREA_PX` | Minimum candidate region size, pixels | `40` |
+| `GEMINI_API_KEY` | Enables Gemini narration; empty = template fallback | empty |
 
 ## 6. Project structure — where things live
 
+```text
+InfraWatch/
+├── backend/
+│   ├── app/
+│   │   ├── main.py                 # app wiring, CORS, static mounts, auto-seed on boot
+│   │   ├── config.py                # Settings, RISK_WEIGHTS, RISK_THRESHOLDS
+│   │   ├── auth.py                  # JWT + bcrypt, get_current_user, require_role
+│   │   ├── risk_engine.py            # deterministic composite risk scoring
+│   │   ├── models/models.py          # SQLAlchemy ORM models
+│   │   ├── schemas/schemas.py        # Pydantic request/response models
+│   │   ├── api/
+│   │   │   ├── auth.py               # /api/auth/*
+│   │   │   ├── projects.py           # /api/projects/* + pipeline orchestration
+│   │   │   └── health.py             # /api/health
+│   │   ├── satellite_service_client.py    # HTTP client for satellite-service /pipeline/run
+│   │   ├── manual_evidence_client.py      # HTTP client for satellite-service /model/detect-images
+│   │   ├── satellite_provider.py, change_detector.py, change_analyzer.py,
+│   │   │   change_crops.py, geo_processor.py, imagery_processor.py
+│   │   │                                   # legacy in-process pipeline — only used for
+│   │   │                                   # bundled [DEMO] image pairs now
+│   │   ├── demo_assets/               # bundled demo before/after image pairs
+│   │   └── manual_evidence/           # contractor-uploaded + seeded real evidence photos
+│   ├── data/processed/mplads_normalized.csv   # the real ~1,000-row MPLADS dataset
+│   ├── scripts/
+│   │   ├── seed_demo_data.py          # 6 synthetic [DEMO] projects
+│   │   ├── seed_real_mplads.py        # imports the real MPLADS CSV + attaches real manual evidence
+│   │   ├── seed_demo_users.py         # the 2 demo accounts
+│   │   └── import_pmgsy_csv.py        # optional: 24 real PMGSY facility locations, via the real HTTP API
+│   └── tests/                        # pytest — see 04-testing-and-qa.md
+├── frontend/
+│   ├── app/{login,register,contractor,projects/[id]}/page.tsx, page.tsx (dashboard), layout.tsx
+│   ├── components/{AuthProvider,Dashboard,ProjectDetailView,ProjectMap,KpiCards,...}.tsx
+│   ├── lib/{api.ts,pdfReport.ts}
+│   └── types/project.ts
+├── start-all.sh
+├── docker-compose.yml
+└── docs/
 ```
-backend/app/
-├── main.py                     FastAPI app entrypoint, CORS, static file mounts
-├── config.py                   All settings (reads .env)
-├── database.py                 SQLAlchemy engine/session setup
-├── models/models.py             DB tables (Project, Milestone, SatelliteObservation, ...)
-├── schemas/schemas.py           Pydantic request/response shapes (the API contract)
-├── api/projects.py              All /api/projects/* routes + the analysis pipeline
-├── satellite_service_client.py  HTTP client for the satellite-service microservice
-├── satellite_provider.py        Legacy Sentinel-2/Esri fetch (demo-mode path only)
-├── imagery_processor.py         Legacy raster download/crop (demo-mode path only)
-├── change_detector.py           Legacy OpenCV pixel-diff detector (demo-mode path only)
-├── change_analyzer.py           Legacy Gemini/fallback analyzer (demo-mode path only)
-├── geo_processor.py             Legacy candidates -> GeoJSON (demo-mode path only)
-└── demo_assets/                 Bundled before/after PNGs for the 6 seeded demo projects
-
-frontend/
-├── app/                          Next.js routes: app/page.tsx (dashboard), app/projects/[id]/page.tsx
-├── components/                   Dashboard, ProjectMap, ProjectDetailView, KpiCards, StatusBadge, ThemeToggle
-│   └── BeforeAfterSlider.tsx      Drag-to-reveal T1/T2 comparison + change-region highlight overlay
-├── lib/api.ts                    All backend API calls + resolveAssetUrl() helper
-├── lib/pdfReport.ts               Client-side (jsPDF) field-verification report generator
-└── types/project.ts              TypeScript types mirroring the backend's Pydantic schemas
-```
-
-> **Why do "legacy" files still exist?** They're still the live code path
-> for `SATELLITE_MODE=demo` (bundled-image demos need no network and no
-> external service). Only the *real*-mode path was replaced by
-> satellite-service — see
-> [05-architecture-and-api-reference.md](05-architecture-and-api-reference.md)
-> for exactly how `api/projects.py` branches between the two.
 
 ## 7. Common developer tasks
 
-**Re-seed the demo database from scratch:**
-```bash
-cd backend && rm -f infrawatch.db && python -m scripts.seed_demo_data
-```
+**Run backend tests:**
 
-**Run the automated test suites:**
 ```bash
 cd backend && pytest tests/ -v
-cd ../../satellite-service && pytest tests/ -v
 ```
-See [04-testing-and-qa.md](04-testing-and-qa.md) for what's covered and the
-manual QA checklist (the frontend has no automated tests yet).
 
-**Add a real project to check:**
-Use `POST /api/projects` (see the API reference) to create one, then
-`POST /api/projects/{id}/analyze` to run it — this is the same path the
-dashboard uses, no direct DB access needed.
+**Type-check the frontend** (no automated test runner is configured yet):
 
-**Bulk-import a real-world project list:** see
-`backend/scripts/import_pmgsy_csv.py` — it reads a CSV (name, latitude,
-longitude, project_type, reported_progress) and creates + analyzes each row
-via the real API. It ships pointed at
-`satellite-service/samples/pmgsy_real_projects.csv` by default: 24 real,
-publicly-sourced facility locations (schools, health centres, panchayat
-offices) from India's PMGSY open data — genuinely real coordinates, useful
-for testing `SATELLITE_MODE=real` against actual Sentinel-2 imagery instead
-of the synthetic demo locations. Run it with:
-```bash
-cd backend && source .venv/bin/activate
-python -m scripts.import_pmgsy_csv
-```
-Point it at any other CSV in the same shape to import a different list.
-
-**Type-check the frontend before committing:**
 ```bash
 cd frontend && npx tsc --noEmit
 ```
 
+**Re-seed from scratch (destroys local data):**
+
+```bash
+cd backend
+rm -f infrawatch.db
+python -m scripts.seed_demo_data
+python -m scripts.seed_real_mplads
+python -m scripts.seed_demo_users
+```
+
+(`seed_demo_data` clears and re-seeds unconditionally when run directly;
+that's why `app/main.py` only calls it automatically when the projects table
+is empty — see the comment there.)
+
+**Import the optional real PMGSY sample** (backend must already be running):
+
+```bash
+cd backend
+python -m scripts.import_pmgsy_csv                      # default CSV path + localhost:8000
+python -m scripts.import_pmgsy_csv --skip-analyze        # create projects without running analysis yet
+```
+
+**Switch satellite mode without hand-editing `.env`:** re-run
+`./start-all.sh real` (or `demo`) from the repo root — it patches
+`backend/.env`'s `SATELLITE_MODE` line for you.
+
 ## 8. Troubleshooting
 
-**Frontend shows "Unable to reach InfraWatch Backend"** — the backend isn't
-running, or `NEXT_PUBLIC_API_BASE_URL` doesn't match where it's listening.
-Check `curl http://localhost:8000/api/health`.
-
-**A project's analysis takes 10-30 seconds and briefly errors before
-succeeding** — expected on `SATELLITE_MODE=real`: it's a genuine live
-satellite fetch + model run, not instant like demo mode. If it errors
-permanently (not just slow), check satellite-service is actually running
-(`curl http://localhost:8001/health`) and reachable at the URL configured
-in `SATELLITE_SERVICE_URL`.
-
-**`rasterio`/GDAL install fails** — see Prerequisites above; install GDAL
-via your OS package manager first, then retry `pip install -r
-requirements.txt`.
-
-**Map controls or a modal render on top of the navbar** — this was a real
-bug (Leaflet's internal z-index of up to 1000 escaping past the sticky
-header's lower z-index with no containing stacking context in between) and
-is now fixed in `app/layout.tsx` (header z-index raised above 1000) and
-`components/ProjectMap.tsx` (`isolate` class added to contain the map's
-stacking context). If you see this again after adding a new
-high-z-index overlay elsewhere, check it lives inside an `isolate`d
-container, not directly under `<main>`.
+- **`ModuleNotFoundError` running a script under `scripts/`** — run it as a
+  module from `backend/` (`python -m scripts.seed_demo_data`), not as a bare
+  script path; the scripts insert the backend root onto `sys.path`
+  themselves but expect to be invoked from there.
+- **bcrypt/passlib import errors** — `requirements.txt` deliberately pins
+  `bcrypt<4.1` because passlib 1.7.4's bcrypt handler is incompatible with
+  bcrypt≥4.1's removed `__about__` attribute; reinstall with
+  `pip install -r requirements.txt` if you've bumped bcrypt independently.
+- **401 on every API call from the frontend** — check `localStorage` for an
+  `infrawatch_token` key; log out and back in if the token has expired
+  (default lifetime 7 days) or `JWT_SECRET_KEY` changed since it was issued.
+- **`SATELLITE_MODE=real` requests hang or 502** — confirm satellite-service
+  is actually running on port 8001 and reachable at `SATELLITE_SERVICE_URL`;
+  check `satellite-service.log`.
+- **Windows: connections to `localhost` time out for ~30s** — the frontend's
+  `lib/api.ts` normalizes `localhost` to `127.0.0.1` specifically to avoid
+  this (an IPv6 `::1` resolution delay); if you still see it, check your
+  `NEXT_PUBLIC_API_BASE_URL` isn't overriding that.

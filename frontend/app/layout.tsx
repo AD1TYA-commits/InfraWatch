@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { AuthProvider } from "@/components/AuthProvider";
 import ThemeToggle from "@/components/ThemeToggle";
+import NavAuthControls from "@/components/NavAuthControls";
 
 export const metadata: Metadata = {
   title: "InfraWatch — AI-Powered Infrastructure Monitoring",
@@ -18,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* Inter — Stripi's open-source Sohne substitute, weights 300 + 400 */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=JetBrains+Mono:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=JetBrains+Mono:wght@400;500&family=Merriweather:wght@400;700&display=swap"
           rel="stylesheet"
         />
       </head>
@@ -29,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         style={{ background: "var(--color-canvas-soft)", color: "var(--color-ink)" }}
       >
         <ThemeProvider>
+        <AuthProvider>
           {/* ── Navigation bar ────────────────────────────────────────── */}
           <header
             className="sticky top-0 z-[1100] transition-colors duration-200"
@@ -107,27 +110,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 {/* Dark/Light mode theme toggle */}
                 <ThemeToggle />
 
-                {/* Primary CTA pill */}
-                <Link
-                  href="/"
-                  id="nav-dashboard-btn"
-                  className="transition-opacity hover:opacity-90"
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: "var(--radius-pill)",
-                    background: "var(--color-primary)",
-                    color: "var(--color-on-primary)",
-                    fontSize: 14,
-                    fontWeight: 400,
-                    lineHeight: 1,
-                    letterSpacing: 0,
-                    fontFeatureSettings: '"ss01"',
-                    textDecoration: "none",
-                    display: "inline-block",
-                  }}
-                >
-                  Dashboard
-                </Link>
+                <NavAuthControls />
               </div>
             </div>
           </header>
@@ -136,6 +119,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {children}
           </main>
+        </AuthProvider>
         </ThemeProvider>
 
 

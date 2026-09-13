@@ -56,6 +56,22 @@ def setup_db():
 client = TestClient(app)
 
 
+@pytest.fixture(scope="module")
+def auth_headers():
+    """Reads of the project registry require any logged-in account (analyst
+    or contractor) — register a throwaway analyst once per test module."""
+    register = client.post(
+        "/api/auth/register",
+        json={
+            "email": "analyst-reader@test.local", "password": "testpass123",
+            "role": "analyst", "full_name": "Test Analyst",
+        },
+    )
+    assert register.status_code == 201
+    token = register.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_health():
     resp = client.get("/api/health")
     assert resp.status_code == 200
@@ -64,16 +80,21 @@ def test_health():
     assert body["database"] == "connected"
 
 
-def test_list_projects():
+def test_list_projects_requires_auth():
     resp = client.get("/api/projects")
+    assert resp.status_code == 401
+
+
+def test_list_projects(auth_headers):
+    resp = client.get("/api/projects", headers=auth_headers)
     assert resp.status_code == 200
     projects = resp.json()
     assert len(projects) == 1
     assert projects[0]["name"] == "[DEMO] Test Project"
 
 
-def test_get_project_detail():
-    resp = client.get("/api/projects/1")
+def test_get_project_detail(auth_headers):
+    resp = client.get("/api/projects/1", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["project_type"] == "Roads"
@@ -123,8 +144,8 @@ def test_ai_analyzer_fallback():
     assert res.usage.model == analyzer.model_name
 
 
-def test_analysis_api_workflow():
-    analysis = client.post("/api/projects/1/analyze")
+def test_analysis_api_workflow(auth_headers):
+    analysis = client.post("/api/projects/1/analyze", headers=auth_headers)
     assert analysis.status_code == 200
     body = analysis.json()
     assert "t1_scene" in body
@@ -134,8 +155,19 @@ def test_analysis_api_workflow():
 
 
 def test_create_project():
+    register = client.post(
+        "/api/auth/register",
+        json={
+            "email": "contractor1@test.local", "password": "testpass123",
+            "role": "contractor", "full_name": "Test Contractor",
+        },
+    )
+    assert register.status_code == 201
+    token = register.json()["access_token"]
+
     resp = client.post(
         "/api/projects",
+        headers={"Authorization": f"Bearer {token}"},
         json={
             "name": "[TEST] Created Project",
             "project_type": "Roads",
@@ -150,5 +182,5 @@ def test_create_project():
     assert body["is_demo"] is False
     assert body["status"] == "normal"
 
-    listed = client.get("/api/projects").json()
+    listed = client.get("/api/projects", headers={"Authorization": f"Bearer {token}"}).json()
     assert any(p["id"] == body["id"] for p in listed)

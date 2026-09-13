@@ -8,11 +8,13 @@ import { ProjectSummary, KPISummary, RiskStatus } from "@/types/project";
 import KpiCards from "./KpiCards";
 import StatusBadge from "./StatusBadge";
 import { useTheme } from "./ThemeProvider";
+import { useRequireAuth } from "./AuthProvider";
 
 const ProjectMap = dynamic(() => import("./ProjectMap"), { ssr: false });
 
 export default function Dashboard() {
   const { theme } = useTheme();
+  const { user, loading: authLoading } = useRequireAuth("analyst");
   const [projects, setProjects]   = useState<ProjectSummary[] | null>(null);
   const [kpi, setKpi]             = useState<KPISummary | null>(null);
   const [error, setError]         = useState<string | null>(null);
@@ -20,23 +22,32 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRisk, setSelectedRisk] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [selectedSource, setSelectedSource] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const PAGE_SIZE = 100;
 
-  const loadData = () => {
+  const loadData = (targetPage: number = page) => {
     setLoading(true);
     setError(null);
     Promise.all([
-      getProjects(),
+      getProjects({
+        page: targetPage,
+        page_size: PAGE_SIZE,
+        data_source: selectedSource === "all" ? undefined : selectedSource,
+      }),
       getKpiSummary().catch(() => null),
     ])
       .then(([p, k]) => {
         setProjects(p);
+        setHasNextPage(p.length === PAGE_SIZE);
         if (k) setKpi(k);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(page); }, [page, selectedSource]);
 
   const projectTypes = useMemo(() => {
     if (!projects) return [];
@@ -44,7 +55,12 @@ export default function Dashboard() {
   }, [projects]);
 
   const derivedKpi: KPISummary = useMemo(() => {
-    if (!projects) return kpi || { total_projects: 0, normal: 0, watch: 0, high: 0, critical: 0 };
+    // `kpi` comes from /kpi-summary, computed over the FULL registry — always
+    // prefer it now that `projects` only ever holds one page (100 rows) of
+    // ~1,000+ real records. Only fall back to counting the loaded page itself
+    // if that endpoint call failed.
+    if (kpi) return kpi;
+    if (!projects) return { total_projects: 0, normal: 0, watch: 0, high: 0, critical: 0 };
     let normal = 0, watch = 0, high = 0, critical = 0;
     projects.forEach((p) => {
       const st = (p.status || "").toLowerCase().trim();
@@ -84,27 +100,37 @@ export default function Dashboard() {
     });
   }, [projects, searchQuery, selectedRisk, selectedType]);
 
+  const mappableCount = useMemo(
+    () => filteredProjects.filter((p) => p.latitude != null && p.longitude != null).length,
+    [filteredProjects]
+  );
+
   const meshStyle: React.CSSProperties = {
     position: "absolute",
     inset: 0,
     background: theme === "dark"
       ? `
-        radial-gradient(ellipse 60% 80% at 0% 50%,   rgba(255, 255, 255, 0.03) 0%, transparent 55%),
-        radial-gradient(ellipse 45% 70% at 30% 20%,  rgba(255, 255, 255, 0.02) 0%, transparent 50%),
-        radial-gradient(ellipse 50% 80% at 65% 10%,  rgba(255, 255, 255, 0.015) 0%, transparent 55%),
-        radial-gradient(ellipse 55% 70% at 95% 40%,  rgba(244, 63, 94, 0.05) 0%,   transparent 50%),
-        radial-gradient(ellipse 40% 60% at 50% 80%,  rgba(0, 0, 0, 0.95) 0%,       transparent 60%)
+        radial-gradient(ellipse 60% 80% at 0% 50%,   rgba(109, 147, 189, 0.10) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 80% at 100% 10%, rgba(212, 167, 44, 0.06) 0%,  transparent 55%),
+        radial-gradient(ellipse 40% 60% at 50% 100%, rgba(0, 0, 0, 0.9) 0%,        transparent 60%)
       `
       : `
-        radial-gradient(ellipse 60% 80% at 0% 50%,   #f5e9d4 0%,  transparent 55%),
-        radial-gradient(ellipse 45% 70% at 30% 20%,  #e0d8ff 0%,  transparent 50%),
-        radial-gradient(ellipse 50% 80% at 65% 10%,  #b9b9f9 0%,  transparent 55%),
-        radial-gradient(ellipse 55% 70% at 95% 40%,  #ffd6ea 0%,  transparent 50%),
-        radial-gradient(ellipse 40% 60% at 50% 80%,  #f0eaff 0%,  transparent 60%)
+        radial-gradient(ellipse 60% 80% at 0% 50%,   #dbe7f2 0%, transparent 55%),
+        radial-gradient(ellipse 50% 80% at 100% 10%, #f5ecd8 0%, transparent 55%),
+        radial-gradient(ellipse 45% 70% at 50% 100%, #f5f7f9 0%, transparent 60%)
       `,
-    opacity: theme === "dark" ? 0.75 : 0.9,
+    opacity: theme === "dark" ? 0.8 : 1,
     pointerEvents: "none",
   };
+
+  // ── Auth gate (redirect handled inside useRequireAuth) ──────────────
+  if (authLoading || !user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--color-primary)" }} />
+      </div>
+    );
+  }
 
   // ── Error state ───────────────────────────────────────────────────
   if (error) {
@@ -121,7 +147,7 @@ export default function Dashboard() {
         <div className="flex items-start gap-4">
           <div
             className="p-2.5 rounded-lg flex-shrink-0"
-            style={{ background: "#fee2e2", color: "#ea2261" }}
+            style={{ background: "#fee2e2", color: "var(--color-ruby)" }}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -136,7 +162,7 @@ export default function Dashboard() {
               Ensure FastAPI backend is running on http://localhost:8000
             </p>
             <button
-              onClick={loadData}
+              onClick={() => loadData()}
               id="error-retry-btn"
               style={{
                 marginTop: 14, padding: "7px 16px", borderRadius: "var(--radius-pill)",
@@ -237,8 +263,8 @@ export default function Dashboard() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: "#10b981" }} />
                 <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: "#10b981" }} />
               </span>
-              <span style={{ fontSize: 11, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>
-                DEMO IMAGE PAIRS
+              <span className="tabular" style={{ fontSize: 11, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>
+                {derivedKpi.total_projects.toLocaleString("en-IN")} REGISTERED WORKS
               </span>
             </div>
           </div>
@@ -289,7 +315,7 @@ export default function Dashboard() {
               flexShrink: 0,
             }}
           >
-            {filteredProjects.length} pin{filteredProjects.length === 1 ? "" : "s"}
+            {mappableCount} pin{mappableCount === 1 ? "" : "s"}
           </span>
         </div>
 
@@ -405,6 +431,25 @@ export default function Dashboard() {
                 </select>
               </>
             )}
+
+            <div style={{ width: 1, height: 16, background: "var(--color-hairline)", margin: "0 4px" }} />
+            <span style={{ fontSize: 12, color: "var(--color-ink-mute)", marginRight: 4 }}>Registry:</span>
+            <select
+              id="filter-data-source"
+              value={selectedSource}
+              onChange={(e) => { setSelectedSource(e.target.value); setPage(1); }}
+              style={{
+                background: "var(--color-canvas)", border: "1px solid var(--color-hairline)",
+                borderRadius: "var(--radius-sm)", color: "var(--color-ink)",
+                fontSize: 12, padding: "4px 8px", cursor: "pointer", outline: "none",
+                fontFeatureSettings: '"ss01"',
+              }}
+            >
+              <option value="all">All Sources</option>
+              <option value="india-mplads-works">MPLADS Registry (MoSPI)</option>
+              <option value="manual-field-evidence">Manual Field Evidence</option>
+              <option value="contractor-registered">Contractor / Other</option>
+            </select>
           </div>
         </div>
 
@@ -413,7 +458,7 @@ export default function Dashboard() {
           <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--color-hairline)", background: "var(--color-canvas-soft)" }}>
-                {["ID", "Project Name", "Sector", "Reported Progress", "Verification Priority", ""].map((col) => (
+                {["S.No.", "Work ID", "Project Name", "Sector", "Reported Progress", "Verification Priority", ""].map((col) => (
                   <th
                     key={col}
                     style={{
@@ -433,7 +478,7 @@ export default function Dashboard() {
               {filteredProjects.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     style={{ padding: "48px 20px", textAlign: "center", fontSize: 14, color: "var(--color-ink-mute)" }}
                   >
                     No projects found matching current filters.
@@ -450,13 +495,23 @@ export default function Dashboard() {
                     onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-canvas-soft)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
-                    {/* ID */}
+                    {/* S.No. */}
                     <td style={{ padding: "14px 20px" }}>
                       <span
                         className="tabular"
                         style={{ fontSize: 12, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}
                       >
-                        #{p.id}
+                        {(page - 1) * PAGE_SIZE + i + 1}
+                      </span>
+                    </td>
+
+                    {/* Work ID */}
+                    <td style={{ padding: "14px 20px" }}>
+                      <span
+                        className="tabular"
+                        style={{ fontSize: 12, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}
+                      >
+                        {p.work_id || `#${p.id}`}
                       </span>
                     </td>
 
@@ -476,7 +531,11 @@ export default function Dashboard() {
                         className="tabular"
                         style={{ fontSize: 11, color: "var(--color-ink-mute)", display: "block", marginTop: 2, fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}
                       >
-                        {p.latitude.toFixed(4)}°N, {p.longitude.toFixed(4)}°E
+                        {p.latitude != null && p.longitude != null
+                          ? `${p.latitude.toFixed(4)}°N, ${p.longitude.toFixed(4)}°E`
+                          : p.evidence_source === "manual_upload"
+                            ? "No GPS on record — manual evidence"
+                            : "No GPS on record"}
                       </span>
                     </td>
 
@@ -551,6 +610,44 @@ export default function Dashboard() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        <div
+          className="flex items-center justify-between"
+          style={{ padding: "14px 24px", borderTop: "1px solid var(--color-hairline)" }}
+        >
+          <span style={{ fontSize: 12, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"' }}>
+            Page {page} · Showing {filteredProjects.length} of {(projects || []).length} loaded record{(projects || []).length === 1 ? "" : "s"}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              id="dashboard-prev-page"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1 || loading}
+              style={{
+                padding: "6px 14px", borderRadius: "var(--radius-pill)", fontSize: 12, fontWeight: 400,
+                border: "1px solid var(--color-hairline)", background: "transparent",
+                color: page <= 1 ? "var(--color-ink-mute)" : "var(--color-ink)",
+                cursor: page <= 1 ? "not-allowed" : "pointer", opacity: page <= 1 ? 0.5 : 1,
+              }}
+            >
+              ← Previous
+            </button>
+            <button
+              id="dashboard-next-page"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={!hasNextPage || loading}
+              style={{
+                padding: "6px 14px", borderRadius: "var(--radius-pill)", fontSize: 12, fontWeight: 400,
+                border: "1px solid var(--color-hairline)", background: "transparent",
+                color: !hasNextPage ? "var(--color-ink-mute)" : "var(--color-ink)",
+                cursor: !hasNextPage ? "not-allowed" : "pointer", opacity: !hasNextPage ? 0.5 : 1,
+              }}
+            >
+              Next →
+            </button>
+          </div>
         </div>
       </div>
     </div>

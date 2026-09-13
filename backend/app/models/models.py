@@ -9,15 +9,35 @@ The ORM layer below stores geometry as WKT text so the exact same model
 code runs against SQLite (zero-dependency local dev) and Postgres alike.
 Swapping DATABASE_URL to a Postgres+PostGIS DSN uses schema.sql for the
 real GEOMETRY column; the ORM's `geometry_wkt` field is a portable
-stand-in that works everywhere. latitude/longitude are always plain floats
-per the spec, so nothing depends on PostGIS being present for the MVP to run.
+stand-in that works everywhere.
+
+NOTE on latitude/longitude: nullable, on purpose. Real government project
+records (e.g. bulk-imported MPLADS works) very often have no published GPS
+coordinates — only administrative names (state/district/constituency). Such
+a project is real and legitimate; it simply can't be satellite-screened
+until either a coordinate becomes available or a contractor uploads manual
+before/after evidence for it (see `evidence_source`).
 """
 from sqlalchemy import (
-    Column, Integer, String, Float, Text, DateTime, ForeignKey, func
+    Column, Integer, String, Float, Text, DateTime, Boolean, ForeignKey, func
 )
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, nullable=False)  # "analyst" | "contractor"
+    full_name = Column(String, nullable=False)
+    organization = Column(String, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    projects = relationship("Project", back_populates="owner")
 
 
 class Project(Base):
@@ -27,8 +47,8 @@ class Project(Base):
     name = Column(String, nullable=False)
     project_type = Column(String, nullable=False)
     description = Column(Text, default="")
-    latitude = Column(Float, nullable=False)
-    longitude = Column(Float, nullable=False)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
     geometry_wkt = Column(Text, nullable=True)  # e.g. "POINT(lon lat)"
     start_date = Column(DateTime, nullable=True)
     expected_end_date = Column(DateTime, nullable=True)
@@ -37,6 +57,28 @@ class Project(Base):
     status = Column(String, default="normal")  # normal | watch | high | critical
     is_demo = Column(Integer, default=1)  # 1 = synthetic demo data, 0 = real
 
+    # How this project's before/after evidence is (or will be) obtained.
+    #   "satellite"      -> real lat/lon, screened via satellite-service
+    #   "manual_upload"  -> no usable coordinate; a contractor supplied before/after photos
+    #   "unavailable"    -> no coordinate and no manual evidence yet
+    evidence_source = Column(String, default="unavailable")
+
+    # Real-world government project metadata (populated for bulk-imported
+    # real datasets like MPLADS; null for synthetic demo projects).
+    work_id = Column(String, unique=True, nullable=True, index=True)
+    mp_name = Column(String, nullable=True)
+    state_name = Column(String, nullable=True)
+    constituency_name = Column(String, nullable=True)
+    district_name = Column(String, nullable=True)
+    implementing_agency = Column(String, nullable=True)
+    sanctioned_amount = Column(Float, nullable=True)
+    actual_expenditure = Column(Float, nullable=True)
+    data_source = Column(String, nullable=True)  # e.g. "india-mplads-works", "pmgsy-geosadak"
+
+    # Which contractor account registered/owns this project, if any.
+    owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    owner = relationship("User", back_populates="projects")
     milestones = relationship("Milestone", back_populates="project", cascade="all, delete-orphan")
     financial_records = relationship("FinancialRecord", back_populates="project", cascade="all, delete-orphan")
     progress_reports = relationship("ProgressReport", back_populates="project", cascade="all, delete-orphan")
@@ -87,7 +129,7 @@ class SatelliteObservation(Base):
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     acquisition_date = Column(DateTime, nullable=False)
-    source = Column(String, nullable=False)  # e.g. "demo", "sentinel-2-l2a"
+    source = Column(String, nullable=False)  # e.g. "demo", "sentinel-2-l2a", "manual-upload"
     image_reference = Column(String, nullable=False)  # path or asset id, never raw raster in DB
     cloud_percentage = Column(Float, nullable=True)
     processing_status = Column(String, default="pending")

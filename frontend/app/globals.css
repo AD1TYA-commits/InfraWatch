@@ -2,36 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Stripi Design Tokens ─────────────────────────────────────────── */
+/* ─── InfraWatch Design Tokens ─────────────────────────────────────────
+   Official/government palette: deep navy primary + a muted gold accent,
+   a serif display face for headings (evoking a registry/gazette, not a
+   consumer SaaS product), light canvas as the default. */
 :root {
   /* Brand */
-  --color-primary:            #533afd;
-  --color-primary-deep:       #4434d4;
-  --color-primary-press:      #2e2b8c;
-  --color-primary-soft:       #665efd;
-  --color-primary-bg-sub:     #b9b9f9;
-  --color-brand-dark:         #1c1e54;
+  --color-primary:            #1e3a5f;
+  --color-primary-deep:       #14283f;
+  --color-primary-press:      #0d1c2c;
+  --color-primary-soft:       #2d5480;
+  --color-primary-bg-sub:     #dbe7f2;
+  --color-brand-dark:         #0a1929;
+  /* Gold accent — used sparingly for emphasis/highlights, not primary actions */
+  --color-gold:                #b8860b;
+  --color-gold-deep:           #8a6508;
+  --color-gold-bg-sub:         #f5ecd8;
   /* Ink */
-  --color-ink:                #0d253d;
-  --color-ink-secondary:      #273951;
+  --color-ink:                #16232f;
+  --color-ink-secondary:      #33475a;
   --color-ink-mute:           #64748d;
   --color-ink-mute-2:         #61718a;
   --color-on-primary:         #ffffff;
   /* Canvas */
   --color-canvas:             #ffffff;
-  --color-canvas-soft:        #f6f9fc;
-  --color-canvas-cream:       #f5e9d4;
+  --color-canvas-soft:        #f5f7f9;
+  --color-canvas-cream:       #f7f1e3;
   /* Borders */
-  --color-hairline:           #e3e8ee;
-  --color-hairline-input:     #a8c3de;
+  --color-hairline:           #dde3e9;
+  --color-hairline-input:     #a8bccc;
   /* Accent */
-  --color-ruby:               #ea2261;
-  --color-magenta:            #f96bee;
-  --color-lemon:              #c8a96a;
-  --color-shadow-blue:        #003770;
+  --color-ruby:               #a3241d;
+  --color-magenta:            #a3241d;
+  --color-lemon:              #b8860b;
+  --color-shadow-blue:        #0a1929;
   /* Elevation */
-  --shadow-1: rgba(0,55,112,0.08) 0 1px 3px;
-  --shadow-2: rgba(0,55,112,0.08) 0 8px 24px, rgba(0,55,112,0.04) 0 2px 6px;
+  --shadow-1: rgba(10,25,41,0.08) 0 1px 3px;
+  --shadow-2: rgba(10,25,41,0.10) 0 8px 24px, rgba(10,25,41,0.05) 0 2px 6px;
   /* Radius */
   --radius-xs:   4px;
   --radius-sm:   6px;
@@ -39,23 +46,30 @@
   --radius-lg:   12px;
   --radius-xl:   16px;
   --radius-pill: 9999px;
+  /* Type */
+  --font-display: 'Merriweather', Georgia, 'Times New Roman', serif;
+  --font-body: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
 }
 
 [data-theme="dark"],
 .dark {
   /* Brand */
-  --color-primary:            #7c68ff;
-  --color-primary-deep:       #9d8cff;
-  --color-primary-press:      #5b45f5;
-  --color-primary-soft:       #8e7dff;
-  --color-primary-bg-sub:     rgba(124, 104, 255, 0.15);
+  --color-primary:            #6d93bd;
+  --color-primary-deep:       #8fb1d6;
+  --color-primary-press:      #4f7aa8;
+  --color-primary-soft:       #7ea2c9;
+  --color-primary-bg-sub:     rgba(109, 147, 189, 0.16);
   --color-brand-dark:         #000000;
+  /* Gold accent */
+  --color-gold:                #d4a72c;
+  --color-gold-deep:           #e8c458;
+  --color-gold-bg-sub:         rgba(212, 167, 44, 0.15);
   /* Ink */
   --color-ink:                #ffffff;
   --color-ink-secondary:      #d4d4d8;
   --color-ink-mute:           #a1a1aa;
   --color-ink-mute-2:         #71717a;
-  --color-on-primary:         #ffffff;
+  --color-on-primary:         #0a1929;
   /* Canvas */
   --color-canvas:             #0a0a0a;
   --color-canvas-soft:        #000000;
@@ -64,9 +78,9 @@
   --color-hairline:           #222222;
   --color-hairline-input:     #2e2e2e;
   /* Accent */
-  --color-ruby:               #f43f5e;
-  --color-magenta:            #f472b6;
-  --color-lemon:              #eab308;
+  --color-ruby:               #e57373;
+  --color-magenta:            #e57373;
+  --color-lemon:              #d4a72c;
   --color-shadow-blue:        #000000;
   /* Elevation */
   --shadow-1: rgba(0, 0, 0, 0.7) 0 1px 3px;
@@ -80,7 +94,7 @@
     font-feature-settings: "ss01";
   }
   body {
-    font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-body);
     font-weight: 300;
     color: var(--color-ink);
     background-color: var(--color-canvas-soft);
@@ -90,6 +104,11 @@
   code, kbd, samp, pre {
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
     font-feature-settings: "tnum";
+  }
+  /* Serif display face for headings — a registry/gazette feel rather than a
+     consumer SaaS product, matching the official-government reference. */
+  h1, h2, h3 {
+    font-family: var(--font-display);
   }
 }
 

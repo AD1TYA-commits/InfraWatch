@@ -25,3 +25,9 @@ coverage/
 
 # OS
 .DS_Store
+
+# Claude Code local session config (dev-server launch config, not a project deliverable)
+.claude/
+
+# Local runtime marker (start-all.sh one-time PMGSY import guard)
+backend/.pmgsy-imported

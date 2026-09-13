@@ -1,14 +1,50 @@
 export type RiskStatus = "normal" | "watch" | "medium" | "least" | "high" | "critical";
+export type EvidenceSource = "satellite" | "manual_upload" | "unavailable";
+export type UserRole = "analyst" | "contractor";
 
 export interface ProjectSummary {
   id: number;
   name: string;
   project_type: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   reported_progress: number;
   status: RiskStatus;
   latest_image_url?: string | null;
+  work_id?: string | null;
+  state_name?: string | null;
+  district_name?: string | null;
+  evidence_source: EvidenceSource;
+  data_source?: string | null;
+}
+
+export interface User {
+  id: number;
+  email: string;
+  role: UserRole;
+  full_name: string;
+  organization?: string | null;
+}
+
+export interface AuthToken {
+  access_token: string;
+  token_type: string;
+  user: User;
+}
+
+export interface RiskFactor {
+  name: string;
+  score: number;
+  weight: number;
+  explanation: string;
+}
+
+export interface Risk {
+  project_id: number;
+  risk_score: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  factors: RiskFactor[];
+  duplicate_candidates: Record<string, unknown>[];
 }
 
 export interface Milestone {

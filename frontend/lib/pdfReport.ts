@@ -80,8 +80,12 @@ export async function generateFieldReport(
 
   doc.setFontSize(9.5);
   doc.setTextColor(...MUTE);
+  const coordLabel =
+    project.latitude != null && project.longitude != null
+      ? `${project.latitude.toFixed(4)}°N, ${project.longitude.toFixed(4)}°E`
+      : "No GPS on record";
   doc.text(
-    `ID #${project.id}  ·  ${project.latitude.toFixed(4)}°N, ${project.longitude.toFixed(4)}°E  ·  ${project.project_type}`,
+    `ID #${project.id}  ·  ${coordLabel}  ·  ${project.project_type}`,
     margin, y
   );
   y += 8;

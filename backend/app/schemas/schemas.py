@@ -60,14 +60,25 @@ class ProjectOut(BaseModel):
     name: str
     project_type: str
     description: str
-    latitude: float
-    longitude: float
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     start_date: Optional[datetime] = None
     expected_end_date: Optional[datetime] = None
     approved_cost: Optional[float] = None
     reported_progress: float
     status: str
     is_demo: bool
+    evidence_source: str = "unavailable"
+    work_id: Optional[str] = None
+    mp_name: Optional[str] = None
+    state_name: Optional[str] = None
+    constituency_name: Optional[str] = None
+    district_name: Optional[str] = None
+    implementing_agency: Optional[str] = None
+    sanctioned_amount: Optional[float] = None
+    actual_expenditure: Optional[float] = None
+    data_source: Optional[str] = None
+    owner_user_id: Optional[int] = None
     milestones: List[MilestoneOut] = []
     financial_records: List[FinancialRecordOut] = []
     satellite_observations: List[SatelliteObservationOut] = []
@@ -94,11 +105,16 @@ class ProjectSummary(BaseModel):
     id: int
     name: str
     project_type: str
-    latitude: float
-    longitude: float
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     reported_progress: float
     status: str
     latest_image_url: Optional[str] = None
+    work_id: Optional[str] = None
+    state_name: Optional[str] = None
+    district_name: Optional[str] = None
+    evidence_source: str = "unavailable"
+    data_source: Optional[str] = None
 
 
 class KPISummary(BaseModel):
@@ -196,3 +212,62 @@ class EvidenceOut(BaseModel):
     explanation: str
     generated_at: datetime
     is_synthetic_demo: bool
+
+
+# ── Auth ─────────────────────────────────────────────────────────────────
+
+class UserRegisterIn(BaseModel):
+    email: str
+    password: str
+    role: str  # "analyst" | "contractor"
+    full_name: str
+    organization: Optional[str] = None
+
+
+class UserLoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    role: str
+    full_name: str
+    organization: Optional[str] = None
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
+
+
+# ── Risk engine ──────────────────────────────────────────────────────────
+
+class RiskFactorOut(BaseModel):
+    name: str
+    score: float  # 0-100, this factor's own score
+    weight: float  # contribution weight to the composite (0-1)
+    explanation: str
+
+
+class RiskOut(BaseModel):
+    project_id: int
+    risk_score: float  # 0-100 composite
+    risk_level: str  # LOW | MEDIUM | HIGH | CRITICAL
+    factors: List[RiskFactorOut]
+    duplicate_candidates: List[dict] = []
+
+
+# ── Manual evidence upload ───────────────────────────────────────────────
+
+class ManualEvidenceOut(BaseModel):
+    project_id: int
+    before_image_url: str
+    after_image_url: str
+    observable_change_percent: float
+    candidate_count: int
+    explanation: str

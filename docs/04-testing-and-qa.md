@@ -1,112 +1,164 @@
 # Testing & QA
 
-What's automatically tested, what isn't, and the manual checklist to run
-through before any demo or handoff. Keep this updated as coverage changes —
-a stale testing doc is worse than none.
-
 ## Automated tests
 
 ### InfraWatch backend (`backend/tests/`, pytest)
 
+25 tests across three files. Run with:
+
 ```bash
-cd backend && pytest tests/ -v
+cd backend
+pytest tests/ -v
 ```
 
-| File | Covers |
-|---|---|
-| `test_api.py` | Health check, project list/detail, Esri fallback provider, OpenCV change detector + GeoJSON conversion, Gemini-analyzer fallback, the full demo-mode `/analyze` workflow |
-| `test_satellite_service_integration.py` | The satellite-service HTTP client (success + transport-failure paths, mocked — no network needed), the adapter that turns satellite-service's JSON into InfraWatch's DB rows/schema (including a regression test for the datetime-string bug caught during real integration testing), graceful degradation when satellite-service is unreachable, and `latest_image_url` resolution for both demo-asset and satellite-service image paths |
+**`test_auth_and_risk.py` (11 tests)** — authentication and the risk engine:
 
-12 tests total, all mocked/offline — no internet or a running satellite-service
-required to run this suite.
+- Registration + login + `/api/auth/me` round trip.
+- Wrong password is rejected (401); duplicate email registration is
+  rejected (409).
+- Password is actually hashed (bcrypt, `$2b$` prefix), never stored plain.
+- Project creation requires the `contractor` role (403 for an analyst) and
+  requires authentication at all (401 with no token).
+- `compute_cost_overrun_risk` scales with overrun size and returns
+  `has_data=False` (not a fabricated risk) when financial figures are
+  missing.
+- `compute_timeline_risk` flags delay correctly and marks `is_delayed`.
+- **`compute_satellite_discrepancy_risk` takes no `project_id` parameter at
+  all** — asserted via `inspect.signature` — so it cannot be special-cased
+  per project even in principle. This directly guards against the pattern
+  the earlier New1 branch used (`check_manual_project`/
+  `check_small_scale_exception`, hardcoded per-ID overrides); see
+  [MERGE-NOTES.md](MERGE-NOTES.md).
+- The composite score never exceeds 100 regardless of how extreme the
+  inputs are, and an arbitrary/unseen `project_id` produces the same
+  CRITICAL result a real one with identical inputs would (proving there's no
+  ID-keyed special-casing anywhere in the composite path either).
+- `GET /api/projects/{id}/risk` returns all 4 weighted factors with scores,
+  weights, and explanations.
+
+**`test_api.py` (9 tests)** — core project API and the demo-mode fallback
+imagery pipeline:
+
+- Health check reports `database: connected`.
+- `GET /api/projects` with no token is rejected (401) — the registry has no
+  anonymous read access.
+- Project list/detail endpoints return the expected shape and fields (once
+  authenticated).
+- `EsriProvider` fallback imagery source still works (legacy demo-mode
+  path).
+- `ChangeDetector` finds a synthetic change region and `ChangeGeoProcessor`
+  converts it to a valid GeoJSON `FeatureCollection` in EPSG:4326.
+- `SatelliteChangeAnalyzer` degrades to a clear "no change detected" result
+  when given no crops, rather than erroring.
+- The full `/analyze` workflow returns scene metadata and a GeoJSON overlay.
+- Contractor-authenticated project creation (`POST /api/projects`) succeeds
+  and the new project immediately appears in the registry list.
+
+**`test_satellite_service_integration.py` (5 tests)** — the HTTP integration
+layer with the real satellite-service, all mocked (no network needed):
+
+- `run_pipeline()`'s HTTP client succeeds against a well-formed response and
+  wraps transport failures (`httpx.ConnectError`, etc.) in
+  `SatelliteServiceError` rather than leaking the raw exception.
+- `_execute_via_satellite_service` correctly parses satellite-service's
+  ISO-string acquisition dates into real `datetime` objects before writing
+  them to a SQLAlchemy `DateTime` column — a regression test for a real bug
+  caught during end-to-end testing (SQLAlchemy rejects a raw ISO string).
+- On a satellite-service failure, the project degrades gracefully to a
+  `watch`-severity anomaly explaining why, instead of the request crashing.
+- `list_projects()`'s `latest_image_url` field resolves correctly for both a
+  bundled demo asset (`/demo-assets/...`) and a real satellite-service
+  result (absolute URL at the satellite-service host).
 
 ### satellite-service (`satellite-service/tests/`, pytest)
 
+Its own repository, its own test suite (`test_change_detection.py`) —
+offline, synthetic-image-based tests of the change-detection model, run
+from within `satellite-service/`:
+
 ```bash
-cd ../satellite-service && pytest tests/ -v
+cd ../satellite-service
+pytest tests/ -v
 ```
 
-4 tests, using synthetic images (no network needed): the PlanAura model is
-deterministic (identical input → byte-identical output), it detects an
-introduced synthetic change region, it reports zero change for identical
-images, and candidate-to-GeoJSON vectorization produces valid polygons.
+Not re-tested from InfraWatch's side beyond the mocked integration-shape
+tests above — see that repo's own `docs/` for details.
+
+### Frontend
+
+No automated test runner (Jest/Playwright/etc.) is configured. The
+correctness check in place is a TypeScript compile:
+
+```bash
+cd frontend
+npx tsc --noEmit
+```
+
+This catches type errors (wrong prop shapes, mismatched API response types
+in `types/project.ts`, etc.) but not runtime/behavioral regressions.
 
 ### What's *not* covered by automated tests
 
-- **The frontend has no automated test suite** (no Jest/Playwright/etc. set
-  up). Every frontend check below is manual. If this project continues past
-  the hackathon, this is the highest-value gap to close next — starting
-  with a smoke test for the dashboard load + project detail analyze flow.
-- **Live network integration** (real Planetary Computer STAC calls, real
-  Gemini calls) is exercised by manual testing only, documented below and in
-  satellite-service's own docs. Automated tests deliberately mock these to
-  stay fast and not depend on external services being up.
-- **No labeled ground-truth validation** — nothing confirms the model's
-  change-detection thresholds actually match real construction outcomes;
-  see the limitations section in
-  [01-project-overview.md](01-project-overview.md).
+- Any actual UI interaction (clicking through the dashboard, submitting the
+  register-project or upload-evidence forms, the PDF export) — verified
+  manually (see checklist below).
+- Real Sentinel-2 fetches or a real Gemini API call (both need network
+  access/credentials and are non-deterministic in the Gemini case; only the
+  deterministic model and the HTTP integration shape are tested).
+- Visual/design regressions in the redesigned light-navy/gold-serif theme.
+- Load/concurrency behavior of the JWT auth layer under many simultaneous
+  users.
 
 ## Manual QA checklist
 
-Run through this after any change to the frontend, the satellite pipeline,
-or before a demo. Needs all three services running (see
-[03-developer-setup.md](03-developer-setup.md)).
+Run through this after any change touching auth, the risk engine, or the
+evidence-upload flow:
 
-**Dashboard**
-- [ ] Loads without console errors, KPI cards show correct counts
-- [ ] Map renders with one pin per project, correct color per priority
-- [ ] Search box filters both the table and the map pin count
-- [ ] Priority and sector filter pills work
-- [ ] Clicking a map pin opens its popup with a real (not broken) thumbnail
-- [ ] Dark/light theme toggle doesn't break any layout
-- [ ] **Scroll the page and confirm the navbar always stays visually on top
-      of the map** — this was a real bug (Leaflet's z-index escaping past
-      the sticky header); re-check this specifically after any CSS/layout
-      change near the map or header
+**Auth**
+- [ ] Register a new analyst account; confirm redirect to `/`.
+- [ ] Register a new contractor account; confirm redirect to `/contractor`.
+- [ ] Log out, log back in with each; confirm the right dashboard loads.
+- [ ] Attempt to open `/contractor` as an analyst (and `/` as a contractor);
+      confirm the redirect in `useRequireAuth` sends you to the right place.
+- [ ] Attempt `POST /api/projects` with an analyst's token via `/docs`;
+      confirm 403.
 
-**Project detail page**
-- [ ] Opening a project auto-runs analysis; loading state shows, then
-      resolves (don't confuse a slow real-mode fetch, 10-30s, with a hang)
-- [ ] Before/after comparison slider renders, drags smoothly, and both
-      corner labels show correct T1/T2 dates
-- [ ] When candidates exist, highlighted boxes appear on the slider at the
-      right positions on both images, and hovering one shows a tooltip with
-      type/confidence/area (test with `CHANGE_MIN_CONFIDENCE` lowered on
-      satellite-service if the current data has zero candidates — see
-      `satellite-service/.env.example`)
-- [ ] AI summary, confidence, and recommendation banner are consistent with
-      each other (e.g., "no significant change" shouldn't pair with a
-      "construction detected" category)
-- [ ] Map at the bottom shows the same location with change-region overlay,
-      toggleable on/off
-- [ ] Milestones and Financials tabs render their data correctly
-- [ ] "Run Analysis Again" re-triggers without error
-- [ ] "Export Report (PDF)" downloads a PDF with project info, both
-      satellite images, the AI summary/recommendation, and the change-region
-      table; verify it still downloads something sensible (with a note
-      instead of images) if image fetching fails
+**Analyst dashboard**
+- [ ] KPI cards match `/api/projects/kpi-summary`, not just the loaded page.
+- [ ] Search, priority filter, sector filter, and registry-source filter
+      each narrow the table correctly and can be combined.
+- [ ] Pagination's Next/Previous buttons work and disable at the boundaries.
+- [ ] Map markers appear only for projects with a GPS coordinate.
 
-**Backend**
-- [ ] `GET /api/health` returns `200` with `database: connected`
-- [ ] `POST /api/projects/{id}/analyze` succeeds for both a demo-mode and
-      (if `SATELLITE_MODE=real`) a real-mode project
-- [ ] A deliberately bad location (e.g., open ocean coordinates) degrades
-      gracefully — returns a clear explanation, not a 500 or a crash
+**Project detail**
+- [ ] "Run Analysis Again" on a satellite-screened project produces a
+      before/after slider, a recommendation banner, and an updated risk
+      breakdown.
+- [ ] A no-coordinate project with manual evidence shows the "no GPS —
+      manually-supplied evidence" note instead of a map.
+- [ ] "Export Report (PDF)" downloads a report containing the project name,
+      risk score, and (where available) the before/after images.
 
-**satellite-service**
-- [ ] `GET /health` returns `200`
-- [ ] `/pipeline/run` against a real land coordinate returns real Sentinel-2
-      dates (not placeholder/epoch dates)
-- [ ] `/pipeline/csv` correctly processes a multi-row CSV and isolates a bad
-      row's error without failing the whole batch
+**Contractor workflow**
+- [ ] Register a new project without lat/lon; confirm the form blocks
+      submission client-side with the mandatory-GPS message.
+- [ ] Register a new project with valid lat/lon; confirm it appears under
+      "My Projects" and is tagged evidence_source=satellite.
+- [ ] Upload before/after evidence for a no-coordinate project; confirm the
+      response shows a real observable-change percentage and region count
+      (not a constant/placeholder value), and that re-uploading against a
+      project that already has a coordinate is rejected with a clear error.
+
+**Real mode (if internet is available)**
+- [ ] `./start-all.sh real`; confirm satellite-service's health check and a
+      live `/pipeline/run` call both succeed for a real-coordinate project.
 
 ## Known issues log
 
-Keep this current — remove an item once actually fixed, add new ones as
-found. As of this writing:
-
-- No authentication on either service (expected for local/prototype use;
-  flagged again here so it isn't missed before any real deployment).
-- Change-detection thresholds are hand-tuned, not validated against labeled
-  data.
-- No automated frontend tests (see above).
+- satellite-service's confidence thresholds are hand-tuned on manual checks,
+  not validated against a labeled ground-truth dataset — treat all outputs
+  (both here and in InfraWatch's risk engine) as screening signal.
+- The legacy in-process demo-mode pipeline (`satellite_provider.py`,
+  `change_detector.py`, `change_analyzer.py`, `geo_processor.py`) only runs
+  for bundled `[DEMO]` image pairs now; it is kept for the offline demo
+  path, not as a second production pipeline.

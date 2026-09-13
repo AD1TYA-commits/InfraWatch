@@ -41,11 +41,18 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
   const [satelliteView, setSatelliteView] = useState(false);
   const [showChangesToggle, setShowChangesToggle] = useState(true);
 
-  const selectedProj = projects.find((p) => p.id === selectedProjectId);
+  // Many real legacy MPLADS/manual-evidence records have no published GPS —
+  // they're honest registry entries, just not mappable until geolocated.
+  const mappableProjects = projects.filter(
+    (p): p is ProjectSummary & { latitude: number; longitude: number } =>
+      p.latitude != null && p.longitude != null
+  );
+
+  const selectedProj = mappableProjects.find((p) => p.id === selectedProjectId);
   const center: [number, number] = selectedProj
     ? [selectedProj.latitude, selectedProj.longitude]
-    : projects.length > 0
-    ? [projects[0].latitude, projects[0].longitude]
+    : mappableProjects.length > 0
+    ? [mappableProjects[0].latitude, mappableProjects[0].longitude]
     : [28.47, 77.50];
   const zoomLevel = selectedProj ? 15 : 12;
 
@@ -90,7 +97,7 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
     ...pillBase,
     background: "var(--color-primary)",
     color: "var(--color-on-primary)",
-    boxShadow: "0 2px 8px rgba(83,58,253,0.25)",
+    boxShadow: "0 2px 8px rgba(30,58,95,0.25)",
   };
 
   const pillInactive: React.CSSProperties = {
@@ -101,7 +108,7 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
 
   const pillDanger: React.CSSProperties = {
     ...pillBase,
-    background: showChangesToggle ? "#ea2261" : "transparent",
+    background: showChangesToggle ? "var(--color-gold)" : "transparent",
     color: showChangesToggle ? "#fff" : "var(--color-ink-mute)",
   };
 
@@ -187,9 +194,9 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
             key={JSON.stringify(geojsonOverlay)}
             data={geojsonOverlay as any}
             style={{
-              color: "#533afd",
+              color: "#1e3a5f",
               weight: 2,
-              fillColor: "#ea2261",
+              fillColor: "#b8860b",
               fillOpacity: 0.35,
             }}
             onEachFeature={onEachFeature}
@@ -197,7 +204,7 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
         )}
 
         {/* Project location markers */}
-        {projects.map((p) => {
+        {mappableProjects.map((p) => {
           const statusKey = p.status?.toLowerCase()?.trim() || "";
           const pinColor =
             STATUS_COLOR[statusKey] ||

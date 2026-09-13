@@ -13,4 +13,12 @@ opencv-python-headless>=4.10.0.84
 pytest>=8.3.3
 httpx>=0.27.2
 python-dotenv>=1.0.1
+python-multipart>=0.0.9
+passlib>=1.7.4
+# passlib 1.7.4's bcrypt handler is incompatible with bcrypt>=4.1 (which
+# removed the `__about__` attribute passlib probes, and passlib's own
+# wrap-bug detection then crashes on newer bcrypt's stricter 72-byte limit).
+# Pin below that until passlib ships a fix.
+bcrypt>=4.0.0,<4.1
+python-jose[cryptography]>=3.3.0
 

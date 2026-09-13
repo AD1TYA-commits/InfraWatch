@@ -119,8 +119,8 @@ export default function BeforeAfterSlider({
             style={{
               position: "absolute",
               left: `${left}%`, top: `${top}%`, width: `${w}%`, height: `${h}%`,
-              border: `2px solid ${isHovered ? "#ea2261" : "#ffcc00"}`,
-              background: isHovered ? "rgba(234,34,97,0.15)" : "rgba(255,204,0,0.08)",
+              border: `2px solid ${isHovered ? "#b8860b" : "#e0a72c"}`,
+              background: isHovered ? "rgba(184,134,11,0.18)" : "rgba(224,167,44,0.08)",
               borderRadius: 3,
               cursor: "pointer",
               transition: "background-color 0.15s ease, border-color 0.15s ease",

@@ -1,131 +1,135 @@
-# User Guide — For Field Officers, Reviewers & Demo Audiences
+# User Guide
 
-This guide is for people **using** the InfraWatch dashboard, not building
-it. No technical background needed. If you want to know what's happening
-under the hood, see [01-project-overview.md](01-project-overview.md); if you
-need to install or run anything, see
-[03-developer-setup.md](03-developer-setup.md) instead.
+InfraWatch has two distinct experiences depending on your role. Sign in (or
+register) at `/login` / `/register` — you're redirected to the right one
+automatically.
 
-## Opening the dashboard
+## As an analyst
 
-Go to the URL your team gives you (locally, this is usually
-`http://localhost:3000`). You'll land on the main dashboard.
+### Signing in
 
-## What you see on the dashboard
+Use the seeded demo account (`analyst@infrawatch.local` /
+`demo-analyst-2025`) or register your own analyst account. You land on the
+main dashboard at `/`.
 
-**Top KPI cards** — four numbers at a glance:
-- **Total Projects** — how many projects are being monitored
-- **Normal Progress** — projects where reported progress and satellite
-  evidence agree
-- **Medium Priority** — projects worth a routine review
-- **Least Priority** — projects flagged for field verification (the reported
-  progress and what the satellite sees don't match up)
+### The dashboard
 
-**The map** — every project plotted as a colored pin:
-- 🔴 **Red** — Least priority / field verification recommended
-- 🟡 **Yellow** — Medium priority / review recommended
-- 🟢 **Green** — Normal, no discrepancy flagged
+- **KPI cards** — total registered works and counts by status
+  (normal/watch/high/critical), computed over the *entire* registry via
+  `GET /api/projects/kpi-summary`, not just the page currently loaded.
+- **Geospatial map** — every project with a GPS coordinate, as a Leaflet
+  marker; click one to see its status.
+- **Project registry table** — S.No., Work ID (or `#id` if none), project
+  name, sector, reported progress, and a verification-priority status
+  badge. A project's coordinates are shown under its name when present, or
+  "No GPS on record" (with "— manual evidence" if a contractor has already
+  uploaded photos for it) when not.
 
-Click any pin for a quick preview card (location, reported progress, a
-satellite thumbnail) with a button straight into the full analysis.
+### Filtering and paging
 
-You can switch the basemap between **Map** (roads/labels) and **Satellite**
-(imagery) using the toggle in the map's top-right corner, and turn the
-**Changes** overlay on/off (this shows the AI's flagged change regions as
-colored boxes directly on the map, once a project has been analyzed).
+- **Search** — matches project name or sector.
+- **Priority filter** — All / Least (Red) / Medium (Yellow) / Normal (Green).
+- **Sector filter** — appears once projects are loaded, built from the
+  sectors actually present on the current page.
+- **Registry filter** — All Sources / MPLADS Registry (MoSPI) / Manual Field
+  Evidence / Contractor / Other — maps to the `data_source` field
+  (`india-mplads-works`, `manual-field-evidence`, `contractor-registered`).
+- **Pagination** — the registry runs to 1,000+ real rows, so the table loads
+  100 at a time (`GET /api/projects?page=&page_size=100`); use Previous/Next
+  to move between pages. The KPI cards always reflect the full registry
+  regardless of which page you're viewing.
 
-**The project table** below the map lists every project with search (by
-name or sector) and filter controls (by priority level or sector). Click
-any project name, or its **Analyze →** button, to open the full detail
-view.
+### The project detail page
 
-## The project detail page
+Click any project name (or its "Analyze →" action) to open
+`/projects/{id}`. You'll see:
 
-Opening a project runs (or re-runs) its satellite analysis automatically —
-this can take anywhere from instant (if bundled demo images are used) to
-10-30 seconds (if it's fetching real Sentinel-2 imagery for the first time).
+- **Overview cards** — reported progress, approved budget, T1 baseline date,
+  T2 latest observation date.
+- **Project scope** — the description on record.
+- **Composite risk assessment** — the 0-100 score, its LOW/MEDIUM/HIGH/
+  CRITICAL level, and all four contributing factors (satellite discrepancy,
+  financial, timeline, duplicate-work) with each factor's own score, weight,
+  and plain-language explanation. If similar nearby works were found, the
+  count is shown — flagged for review, not confirmed as duplicates.
+- **AI Satellite Screening tab** — before/after image slider (drag to
+  compare T1 vs. T2), any AI-narrated change summary and detected change
+  categories, and a recommendation banner (Field verification recommended /
+  Review recommended / No significant discrepancy). "Run Analysis Again"
+  re-runs the pipeline live. "Fetch Latest Sentinel-2" forces a fresh
+  imagery pull (`POST /api/projects/{id}/ingest`). Projects with no GPS
+  coordinate show a note that evidence came from manually-supplied photos
+  instead of a satellite map location.
+- **Milestones tab** and **Financials tab** — the schedule and disbursement
+  records on file for the project, where present.
+- **Export Report (PDF)** — generates a field-verification PDF client-side
+  (via jsPDF; no backend round trip) from the current analysis, evidence,
+  and project data — useful to hand to a field team.
 
-You'll see:
+### What to do with a flagged project
 
-1. **Header strip** — project name, priority badge, ID, coordinates, sector.
-2. **Fetch Latest Sentinel-2 (STAC)** button — forces a fresh real-imagery
-   fetch even for a demo project (only meaningful when the backend is
-   running in `real` satellite mode — ask a developer if you're not sure).
-3. **Four metric cards** — reported progress (the official claim), approved
-   budget, and the dates of the two satellite scenes actually used (T1
-   baseline / T2 latest observation).
-4. **Project Scope** — the plain description of what the project is.
-5. **Three tabs**:
-   - **AI Satellite Screening** (default) — the main event, see below.
-   - **Milestones** — the planned schedule (phase dates and expected %).
-   - **Financials** — money disbursed so far, by category and date.
+A HIGH or CRITICAL composite score, or a "Field verification recommended"
+banner, means: schedule an on-site check. It does not mean fraud has been
+established — read the factor explanations to understand *why* it was
+flagged (a large satellite discrepancy is a very different situation from a
+financial-overrun-only flag) before deciding what to check for on site.
 
-### Reading the "AI Satellite Screening" tab
+## As a contractor
 
-- **Before / after comparison slider** — the two actual satellite photos,
-  drag the center handle left/right to reveal one underneath the other.
-  This is the ground truth the whole analysis is based on — always worth a
-  quick look yourself. If the model flagged any change regions, they're
-  drawn as highlighted boxes on top of both images — hover one to see its
-  type, confidence, and estimated area.
-- **Export Report (PDF)** button (top of the page) — downloads a
-  self-contained PDF summarizing everything on this tab (project info,
-  both satellite images, the AI summary, the recommendation, and a table of
-  every detected change region) — useful for attaching to a field
-  verification case file or sharing with someone who doesn't have dashboard
-  access. Needs a completed analysis first (the button is disabled until
-  one exists).
-- **AI Confidence** — how strongly the model believes its own read of the
-  imagery (not a probability of fraud, just "how sure is this
-  measurement").
-- **Summary line** — a one-sentence, plain-English description of what
-  changed (or didn't).
-- **Detected Change Categories** — if something changed, a breakdown of what
-  kind (new construction, vegetation loss, etc.) with a confidence per item.
-- **The recommendation banner** — the actual verdict:
-  - *"No significant discrepancy"* — reported progress and observed change
-    line up; no action needed.
-  - *"Review recommended"* — some mismatch, worth a routine look.
-  - *"Field verification recommended"* — the strongest flag: high claimed
-    progress with little to no visible change. **This is the signal a field
-    officer should act on first.**
-- **Interactive map** — the same location, now with the flagged change
-  regions drawn as colored boxes (click one for details: type, confidence,
-  estimated area).
+### Signing in
 
-## What to actually do with a "Field verification recommended" flag
+Use the seeded demo account (`contractor@infrawatch.local` /
+`demo-contractor-2025`) or register with the "Contractor" role selected.
+You land on `/contractor`, with three tabs.
 
-This is a **screening signal, not proof**. Before escalating anything:
-- Look at the before/after images yourself — does the mismatch look
-  believable, or could it be explained by clouds, shadows, or the picture
-  quality?
-- Check the scene dates — if T1 and T2 are very close together, of course
-  little will have changed yet; that's not suspicious.
-- Treat this as "worth sending someone to check," not "this project is
-  fraudulent." The system is explicitly designed to never make that claim
-  itself — see the disclaimer in the site footer.
+### My Projects
+
+Lists everything you've registered or uploaded evidence for
+(`GET /api/projects/mine`), each tagged Satellite-screened / Manual evidence
+/ Awaiting evidence. Click through to the same project detail page an
+analyst sees.
+
+### Register New Project
+
+Creates a brand-new project (`POST /api/projects`). **Latitude and longitude
+are mandatory** — every newly-registered project gets real satellite
+screening automatically from the moment it's created; there is no way to
+register a new project without a coordinate. If you don't have one yet for
+an existing legacy record, use "Upload Evidence" instead. Fields: name,
+sector, reported progress (%), latitude, longitude, description.
+
+### Upload Evidence
+
+For an **existing** project that has no GPS coordinate on record (a common
+situation for older, already-registered works). Pick the project from a
+dropdown (pre-filtered to `evidence_source=unavailable`), attach a before
+photo and an after photo (e.g. Google Maps/Earth screenshots, or actual site
+photos), and submit
+(`POST /api/projects/{id}/evidence/upload`, multipart). This runs the exact
+same real change-detection model used for satellite imagery — a real model
+score, not a placeholder number — and immediately shows the observable
+change percentage and region count detected. You can only upload evidence
+for a project you own or that has no owner yet, and only if it genuinely has
+no coordinate; the API rejects an upload attempt against a project that
+already has one (it's already satellite-screened automatically).
 
 ## Frequently asked questions
 
-**"No significant change regions were detected between the two scenes" — is
-that a bug?**
-No. It means the model's comparison of the two dates genuinely found little
-visible difference. For a short time gap or a site that hasn't started
-construction yet, that's the correct, honest answer — not every project
-should show change.
+**Why does a project show "No GPS on record"?**
+Most bulk-imported real MPLADS records don't publish a GPS coordinate — this
+is a property of the source data, not something InfraWatch failed to
+collect. Such a project can't be satellite-screened until either a
+coordinate becomes available or a contractor uploads manual evidence for it.
 
-**Why does the AI model name say "template-fallback" instead of Gemini?**
-No Gemini API key is configured on this deployment. The measurement itself
-is unaffected — only the wording of the summary comes from a fixed template
-instead of an LLM. Ask a developer if you expect Gemini to be enabled here.
+**Is the risk score proof of anything?**
+No. It's a screening prioritization signal for human review — see the
+disclaimer on every risk response and
+[01-project-overview.md](01-project-overview.md).
 
-**A project shows no images at all.**
-This means no satellite imagery could be found for that location (often:
-too much cloud cover in the search window, or the location has no
-Sentinel-2 coverage). The system will say so explicitly in the explanation
-text rather than silently failing.
+**Can an analyst upload evidence or register a project?**
+No — those actions are contractor-only, enforced on the backend
+(`require_role("contractor")`) as well as hidden from the analyst UI.
 
-**Can I add a new project to check?**
-Not directly from this UI yet — ask a developer to add it via the database
-or (for satellite-service) a CSV batch upload. See
-[03-developer-setup.md](03-developer-setup.md).
+**Can a contractor see the full registry / map dashboard?**
+No — `/` is analyst-only; a contractor who navigates there is redirected
+back to `/contractor`.

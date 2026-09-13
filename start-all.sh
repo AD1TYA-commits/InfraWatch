@@ -11,9 +11,12 @@
 #
 # First run does full setup automatically (venvs, pip/npm installs, .env
 # files) — this can take a few minutes. Every run after that starts in
-# seconds. The demo database and its 6 sample projects are created
-# automatically the first time the backend starts — there is nothing to
-# download, prepare, or configure by hand.
+# seconds. On first boot the backend automatically seeds: 6 offline demo
+# projects, the real ~1,000-row MPLADS registry (with 4 real manually-
+# photographed legacy projects), and one demo analyst + one demo contractor
+# account — there is nothing to download, prepare, or configure by hand.
+# In 'real' mode, the 24-project real PMGSY sample also imports in the
+# background on first run (needs internet; see the log path printed below).
 #
 # Press Ctrl+C to stop all three services cleanly.
 # ─────────────────────────────────────────────────────────────────────────
@@ -123,6 +126,25 @@ echo "==> Starting InfraWatch frontend (port 3000)..."
   > /tmp/infrawatch-logs/frontend.log 2>&1 &
 PIDS+=($!)
 
+# ── One-time real-satellite import for the 24-project PMGSY sample, in the
+# background so it never blocks the "services are up" message below. Only
+# in 'real' mode (needs live Sentinel-2 imagery + internet) and only once —
+# guarded by a marker file, not by re-checking the database, so it still
+# skips correctly even if this exact run's import partially failed.
+if [ "$MODE" = "real" ] && [ ! -f "$SCRIPT_DIR/backend/.pmgsy-imported" ]; then
+  (
+    cd "$SCRIPT_DIR/backend" || exit 0
+    source .venv/bin/activate
+    # Give the backend a moment to actually start listening before the
+    # importer's first HTTP call.
+    for _ in $(seq 1 30); do
+      curl -sf http://localhost:8000/api/health >/dev/null 2>&1 && break
+      sleep 2
+    done
+    python -m scripts.import_pmgsy_csv && touch .pmgsy-imported
+  ) > /tmp/infrawatch-logs/pmgsy-import.log 2>&1 &
+fi
+
 echo ""
 echo "=================================================================="
 if [ "$MODE" = "demo" ]; then
@@ -131,6 +153,8 @@ if [ "$MODE" = "demo" ]; then
 else
   echo " Mode: REAL — live Sentinel-2 imagery via satellite-service."
   echo " Needs internet access. First analysis per project takes 10-30s."
+  echo " The 24 real PMGSY sample projects are importing in the background"
+  echo " on first run (~5-10 min) — see /tmp/infrawatch-logs/pmgsy-import.log."
 fi
 echo "=================================================================="
 echo ""
@@ -140,6 +164,10 @@ echo ""
 echo "   Dashboard:            http://localhost:3000"
 echo "   Backend API docs:     http://localhost:8000/docs"
 echo "   satellite-service docs: http://localhost:8001/docs"
+echo ""
+echo " Demo accounts (seeded automatically, for evaluation only):"
+echo "   Analyst:    analyst@infrawatch.local    / demo-analyst-2025"
+echo "   Contractor: contractor@infrawatch.local / demo-contractor-2025"
 echo ""
 echo " Logs are in /tmp/infrawatch-logs/ if something looks wrong."
 echo " Press Ctrl+C here to stop everything."
