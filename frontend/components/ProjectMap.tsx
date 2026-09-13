@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup, GeoJSON, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
 import { useRouter } from "next/navigation";
 import "leaflet/dist/leaflet.css";
-import { ProjectSummary, GeoJSONFeatureCollection } from "@/types/project";
+import { ProjectSummary } from "@/types/project";
 import StatusBadge from "./StatusBadge";
 import EvidenceBadge from "./EvidenceBadge";
 import { useTheme } from "./ThemeProvider";
@@ -32,15 +32,13 @@ function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }
 
 interface ProjectMapProps {
   projects: ProjectSummary[];
-  geojsonOverlay?: GeoJSONFeatureCollection | null;
   selectedProjectId?: number;
 }
 
-export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId }: ProjectMapProps) {
+export default function ProjectMap({ projects, selectedProjectId }: ProjectMapProps) {
   const router = useRouter();
   const { theme } = useTheme();
   const [satelliteView, setSatelliteView] = useState(false);
-  const [showChangesToggle, setShowChangesToggle] = useState(true);
 
   // Many real legacy MPLADS/manual-evidence records have no published GPS —
   // they're honest registry entries, just not mappable until geolocated.
@@ -56,27 +54,6 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
     ? [mappableProjects[0].latitude, mappableProjects[0].longitude]
     : [28.47, 77.50];
   const zoomLevel = selectedProj ? 15 : 12;
-
-  const onEachFeature = (feature: any, layer: any) => {
-    if (!feature.properties) return;
-    const p = feature.properties;
-    const conf = (p.ai_confidence * 100).toFixed(0);
-    const cv   = (p.cv_confidence  * 100).toFixed(0);
-    const area = p.estimated_area_m2 ? p.estimated_area_m2.toLocaleString() : "—";
-    const type = p.change_type?.replace(/_/g, " ") || "Construction";
-    layer.bindPopup(`
-      <div style="padding:12px 14px;min-width:180px;font-family:'Inter',system-ui,sans-serif">
-        <div style="font-size:10px;font-weight:400;letter-spacing:0.1px;text-transform:uppercase;color:#64748d;margin-bottom:4px">AI Candidate</div>
-        <div style="font-size:14px;font-weight:300;letter-spacing:-0.26px;color:#0d253d;margin-bottom:8px;text-transform:capitalize">${p.label || type}</div>
-        <div style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#64748d;font-feature-settings:'tnum';letter-spacing:-0.39px">
-          <div style="display:flex;justify-content:space-between"><span>Type</span><span style="color:#273951;font-weight:400;text-transform:capitalize">${type}</span></div>
-          <div style="display:flex;justify-content:space-between"><span>AI Confidence</span><span style="color:#273951;font-weight:400">${conf}%</span></div>
-          <div style="display:flex;justify-content:space-between"><span>CV Confidence</span><span style="color:#273951;font-weight:400">${cv}%</span></div>
-          <div style="display:flex;justify-content:space-between"><span>Area</span><span style="color:#273951;font-weight:400">${area} m²</span></div>
-        </div>
-      </div>
-    `);
-  };
 
   const rawApiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
   const apiBase = rawApiUrl.replace("localhost", "127.0.0.1");
@@ -107,12 +84,6 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
     color: "var(--color-ink-mute)",
   };
 
-  const pillDanger: React.CSSProperties = {
-    ...pillBase,
-    background: showChangesToggle ? "var(--color-gold)" : "transparent",
-    color: showChangesToggle ? "#fff" : "var(--color-ink-mute)",
-  };
-
   // Select base map tile layer matching current theme
   const lightMapTileUrl =
     process.env.NEXT_PUBLIC_MAP_LIGHT_TILE_URL ||
@@ -138,24 +109,6 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
           boxShadow: "var(--shadow-2)",
         }}
       >
-        {geojsonOverlay && (
-          <>
-            <button
-              id="map-toggle-changes"
-              onClick={() => setShowChangesToggle(!showChangesToggle)}
-              style={pillDanger}
-              className="flex items-center gap-1.5"
-            >
-              <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="6" />
-                <circle cx="12" cy="12" r="2" />
-              </svg>
-              <span>Changes {showChangesToggle ? "ON" : "OFF"}</span>
-            </button>
-            <div style={{ width: 1, height: 16, background: "var(--color-hairline)", margin: "0 2px" }} />
-          </>
-        )}
         <button
           id="map-btn-base"
           onClick={() => setSatelliteView(false)}
@@ -186,21 +139,6 @@ export default function ProjectMap({ projects, geojsonOverlay, selectedProjectId
             key={`base-map-${theme}`}
             attribution='&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community'
             url={baseMapUrl}
-          />
-        )}
-
-        {/* GeoJSON change candidate overlay */}
-        {showChangesToggle && geojsonOverlay && geojsonOverlay.features && (
-          <GeoJSON
-            key={JSON.stringify(geojsonOverlay)}
-            data={geojsonOverlay as any}
-            style={{
-              color: "#1e3a5f",
-              weight: 2,
-              fillColor: "#b8860b",
-              fillOpacity: 0.35,
-            }}
-            onEachFeature={onEachFeature}
           />
         )}
 

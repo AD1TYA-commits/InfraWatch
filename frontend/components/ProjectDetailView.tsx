@@ -719,14 +719,13 @@ export default function ProjectDetailView({ id }: { id: string }) {
                   <div ref={mapRef} style={{ paddingTop: 4 }}>
                     <div className="flex items-center justify-between mb-3">
                       <h4 style={{ fontSize: 13, fontWeight: 400, letterSpacing: "0.1px", textTransform: "uppercase", color: "var(--color-ink-mute)" }}>
-                        Interactive Geospatial Map &amp; GeoJSON Candidate Overlay
+                        Project Location
                       </h4>
                       <span className="tabular" style={{ fontSize: 11, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}>EPSG:4326</span>
                     </div>
                     {project.latitude != null && project.longitude != null ? (
                       <ProjectMap
                         projects={[project]}
-                        geojsonOverlay={analysis.geojson_overlay}
                         selectedProjectId={project.id}
                       />
                     ) : (
