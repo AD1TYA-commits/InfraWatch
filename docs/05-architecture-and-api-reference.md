@@ -225,3 +225,19 @@ matters.
   (`app/main.py` checks `Project` count before seeding) — a container
   restart or a `docker compose up` against an existing volume can never
   silently wipe or duplicate real imported data.
+- **`execute_pipeline()` gates the demo-image path on `project.is_demo`,
+  not on file existence alone** — bundled demo assets are named only by
+  database ID (`project_1_before.png` ... `project_6_before.png`), so a
+  filename-existence check by itself would silently misroute any *real*
+  project that happened to land on ID 1-6 into the demo pipeline (and crash
+  outright if it had no coordinates, since that path assumes lat/lon always
+  exist). This was a real bug found during a later data-cleanup pass, fixed
+  by checking `is_demo` first; `tests/test_demo_routing.py` is a permanent
+  regression test that deliberately forces this exact ID collision.
+- **The 1,000-row MPLADS CSV is reference data on disk, not a bulk import
+  source** — 997 of its 1,000 rows have no GPS coordinate and no real
+  progress figure (it's a sanction/works registry, not a live tracker), so
+  only the 3 rows with a verified coordinate are imported as projects
+  (`scripts/seed_real_mplads.py`). Importing all 1,000 would have meant
+  fabricating a misleading 0% progress for records that don't carry that
+  data — see [MERGE-NOTES.md](MERGE-NOTES.md).

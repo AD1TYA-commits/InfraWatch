@@ -113,7 +113,7 @@ imagery; otherwise it defaults to `demo`.
 | `AI_VISION_PROVIDER` / `AI_VISION_MODEL` | Legacy demo-mode analyzer model identifiers | `gemini` / `gemini-2.5-flash-lite` |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000` |
 | `AI_MAX_CANDIDATES`, `AI_CROP_SIZE`, `AI_CONTEXT_MARGIN`, `AI_MIN_CV_CONFIDENCE`, `AI_ENABLE_CACHE` | Demo-mode fallback path's local OpenCV/crop tuning | see `app/config.py` |
-| `JWT_SECRET_KEY` | Signs and verifies auth tokens | `dev-only-insecure-secret-change-me` — **override this for any deployment reachable beyond your own machine**; not present in `.env.example` by default, so set it explicitly |
+| `JWT_SECRET_KEY` | Signs and verifies auth tokens | `dev-only-insecure-secret-change-me` — **override this for any deployment reachable beyond your own machine** (e.g. `openssl rand -hex 32`); present in `.env.example` with this insecure default precisely so a deployment doesn't silently ship without one |
 | `JWT_EXPIRE_MINUTES` | Token lifetime | `10080` (7 days) |
 
 Note: `JWT_ALGORITHM` is fixed to `HS256` in code (`app/config.py`), not
@@ -143,7 +143,7 @@ InfraWatch/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                 # app wiring, CORS, static mounts, auto-seed on boot
-│   │   ├── config.py                # Settings, RISK_WEIGHTS, RISK_THRESHOLDS
+│   │   ├── config.py                # Settings (env vars) + RISK_WEIGHTS
 │   │   ├── auth.py                  # JWT + bcrypt, get_current_user, require_role
 │   │   ├── risk_engine.py            # deterministic composite risk scoring
 │   │   ├── models/models.py          # SQLAlchemy ORM models
@@ -168,7 +168,7 @@ InfraWatch/
 │   │   │                             # real manual evidence (4 projects total incl. Tamil Nadu)
 │   │   ├── seed_demo_users.py         # the 2 demo accounts
 │   │   └── import_pmgsy_csv.py        # optional: 24 real PMGSY facility locations, via the real HTTP API
-│   └── tests/                        # pytest — see 04-testing-and-qa.md
+│   └── tests/                        # pytest (26 tests across 4 files) — see 04-testing-and-qa.md
 ├── frontend/
 │   ├── app/{login,register,contractor,projects/[id]}/page.tsx, page.tsx (dashboard), layout.tsx
 │   ├── components/{AuthProvider,Dashboard,ProjectDetailView,ProjectMap,KpiCards,...}.tsx

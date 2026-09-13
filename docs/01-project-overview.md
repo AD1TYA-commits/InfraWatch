@@ -113,10 +113,11 @@ Full detail: [06-auth-and-roles.md](06-auth-and-roles.md).
 ## 7. Current status (be honest about this in a demo)
 
 - Full-stack auth, deterministic risk scoring, and the manual-evidence
-  workflow are implemented and tested (24 backend tests).
-- The risk engine's weights and thresholds are reasoned defaults
-  (`app/config.py`'s `RISK_WEIGHTS`/`RISK_THRESHOLDS`), not calibrated
-  against a labeled ground-truth dataset of confirmed cases.
+  workflow are implemented and tested (26 backend tests).
+- The risk engine's weights (`app/config.py`'s `RISK_WEIGHTS`) and the
+  LOW/MEDIUM/HIGH/CRITICAL score thresholds (`app/risk_engine.py`'s
+  `_classify()`) are reasoned defaults, not calibrated against a labeled
+  ground-truth dataset of confirmed cases.
 - Production hardening beyond JWT + bcrypt + role gating (rate limiting,
   refresh tokens, password reset, audit-log UI) is not yet built.
 - satellite-service has no auth of its own by design — it's meant to sit

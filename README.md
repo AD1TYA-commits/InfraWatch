@@ -122,6 +122,20 @@ Two demo accounts are seeded automatically for local evaluation only —
 
 Full details: [docs/06-auth-and-roles.md](docs/06-auth-and-roles.md).
 
+## Design
+
+Styled as an official government registry, not a generic SaaS admin panel —
+deep navy + muted gold palette, serif (Merriweather) headings, full light/dark
+theming via CSS custom properties (`frontend/app/globals.css`). Two concrete
+expressions of this: the project registry table is a ledger (heavier header
+rule, column dividers, zebra rows, serif tabular numerals) rather than a
+generic data grid, and the project detail page's tabs are styled as
+file-folder "dossier" tabs rather than floating pill buttons. Every project
+also carries a visible evidence-type badge (🛰️ Satellite / 📷 Manual Upload /
+— Awaiting Evidence) so it's always clear at a glance whether a result came
+from a real Sentinel-2 pass or a contractor-supplied photo comparison. Full
+detail: [docs/02-user-guide.md](docs/02-user-guide.md#look-and-feel).
+
 ## Technology
 
 - Frontend: Next.js 14, TypeScript, Tailwind CSS, Leaflet, jsPDF
@@ -219,12 +233,16 @@ cd backend
 pytest tests/ -v
 ```
 
-26 tests covering authentication (register/login/role enforcement,
+26 tests across 4 files: authentication (register/login/role enforcement,
 password hashing), the risk engine (deterministic scoring, and an explicit
 test that its satellite-discrepancy function takes no `project_id` and so
-cannot be special-cased per project), project CRUD, and the satellite-service
+cannot be special-cased per project), project CRUD, the satellite-service
 integration layer (HTTP client, response mapping, graceful degradation —
-mocked, no network needed).
+mocked, no network needed), and a dedicated regression test for a real bug
+found during development (a real project landing on a database ID that
+coincidentally matched a bundled demo-asset filename used to get silently
+misrouted into the demo pipeline — see
+[docs/05-architecture-and-api-reference.md](docs/05-architecture-and-api-reference.md)).
 
 The frontend has no automated test runner configured yet; `npx tsc --noEmit`
 in `frontend/` is used as a type-correctness check. See
