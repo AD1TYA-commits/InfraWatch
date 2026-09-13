@@ -475,12 +475,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Table */}
+        {/* Table — ledger-register styling: heavier header rule, column
+            dividers, zebra rows, serif numerals for the ID columns — reads
+            as an official register rather than an admin-panel grid. */}
         <div className="overflow-x-auto">
           <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--color-hairline)", background: "var(--color-canvas-soft)" }}>
-                {["S.No.", "Work ID", "Project Name", "Sector", "Evidence", "Reported Progress", "Verification Priority", ""].map((col) => (
+              <tr style={{ borderBottom: "2px solid var(--color-primary)", background: "var(--color-canvas-soft)" }}>
+                {["S.No.", "Work ID", "Project Name", "Sector", "Evidence", "Reported Progress", "Verification Priority", ""].map((col, i, arr) => (
                   <th
                     key={col}
                     style={{
@@ -489,6 +491,7 @@ export default function Dashboard() {
                       textTransform: "uppercase", color: "var(--color-ink-mute)",
                       fontFeatureSettings: '"ss01"',
                       textAlign: col === "" ? "right" : "left",
+                      borderRight: i < arr.length - 1 ? "1px solid var(--color-hairline)" : "none",
                     }}
                   >
                     {col}
@@ -513,32 +516,33 @@ export default function Dashboard() {
                     className="transition-colors"
                     style={{
                       borderBottom: i < filteredProjects.length - 1 ? "1px solid var(--color-hairline)" : "none",
+                      background: i % 2 === 1 ? "var(--color-canvas-soft)" : "transparent",
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-canvas-soft)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-primary-bg-sub)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 1 ? "var(--color-canvas-soft)" : "transparent")}
                   >
                     {/* S.No. */}
-                    <td style={{ padding: "14px 20px" }}>
+                    <td style={{ padding: "14px 20px", borderRight: "1px solid var(--color-hairline)" }}>
                       <span
                         className="tabular"
-                        style={{ fontSize: 12, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}
+                        style={{ fontSize: 12, fontFamily: "var(--font-display)", color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}
                       >
                         {(page - 1) * PAGE_SIZE + i + 1}
                       </span>
                     </td>
 
                     {/* Work ID */}
-                    <td style={{ padding: "14px 20px" }}>
+                    <td style={{ padding: "14px 20px", borderRight: "1px solid var(--color-hairline)" }}>
                       <span
                         className="tabular"
-                        style={{ fontSize: 12, color: "var(--color-ink-mute)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}
+                        style={{ fontSize: 12, fontFamily: "var(--font-display)", color: "var(--color-ink-secondary)", fontFeatureSettings: '"tnum"', letterSpacing: "-0.39px" }}
                       >
                         {p.work_id || `#${p.id}`}
                       </span>
                     </td>
 
                     {/* Name */}
-                    <td style={{ padding: "14px 20px" }}>
+                    <td style={{ padding: "14px 20px", borderRight: "1px solid var(--color-hairline)" }}>
                       <Link
                         href={`/projects/${p.id}`}
                         style={{
@@ -562,7 +566,7 @@ export default function Dashboard() {
                     </td>
 
                     {/* Sector */}
-                    <td style={{ padding: "14px 20px" }}>
+                    <td style={{ padding: "14px 20px", borderRight: "1px solid var(--color-hairline)" }}>
                       <span
                         style={{
                           padding: "3px 10px", borderRadius: "var(--radius-pill)",
@@ -575,12 +579,12 @@ export default function Dashboard() {
                     </td>
 
                     {/* Evidence source */}
-                    <td style={{ padding: "14px 20px" }}>
+                    <td style={{ padding: "14px 20px", borderRight: "1px solid var(--color-hairline)" }}>
                       <EvidenceBadge source={p.evidence_source} compact />
                     </td>
 
                     {/* Progress */}
-                    <td style={{ padding: "14px 20px" }}>
+                    <td style={{ padding: "14px 20px", borderRight: "1px solid var(--color-hairline)" }}>
                       <div style={{ width: 120 }}>
                         <div className="flex justify-between mb-1">
                           <span
@@ -609,7 +613,7 @@ export default function Dashboard() {
                     </td>
 
                     {/* Status */}
-                    <td style={{ padding: "14px 20px" }}>
+                    <td style={{ padding: "14px 20px", borderRight: "1px solid var(--color-hairline)" }}>
                       <StatusBadge status={p.status} />
                     </td>
 

@@ -374,10 +374,13 @@ export default function ProjectDetailView({ id }: { id: string }) {
         </div>
       )}
 
-      {/* ── Main Tab Panel ───────────────────────────────────────── */}
-      <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {/* Tab header */}
-        <div style={{ display: "flex", borderBottom: "1px solid var(--color-hairline)", padding: "8px 12px", gap: 6, background: "var(--color-canvas-soft)" }}>
+      {/* ── Main Tab Panel — rendered as file-folder dossier tabs sitting
+          above the panel, rather than SaaS pill buttons floating inside it ──── */}
+      <div>
+        {/* Tab header — sits above the panel; the active tab's bottom edge
+            visually merges into the panel below it (negative margin + no
+            bottom border on the active tab). */}
+        <div style={{ display: "flex", gap: 4, paddingLeft: 4 }}>
           {[
             {
               id: "satellite",
@@ -406,29 +409,44 @@ export default function ProjectDetailView({ id }: { id: string }) {
                 </svg>
               ),
             },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              id={`tab-${tab.id}`}
-              onClick={() => setActiveTab(tab.id as any)}
-              style={{
-                padding: "7px 16px", borderRadius: "var(--radius-pill)",
-                fontSize: 13, fontWeight: 400, border: "none", cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 6,
-                background: activeTab === tab.id ? "var(--color-primary)" : "transparent",
-                color: activeTab === tab.id ? "var(--color-on-primary)" : "var(--color-ink-mute)",
-                boxShadow: activeTab === tab.id ? "0 2px 8px rgba(30,58,95,0.25)" : "none",
-                transition: "all 0.15s ease",
-                fontFeatureSettings: '"ss01"',
-              }}
-            >
-              <span className="flex items-center">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
+          ].map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                id={`tab-${tab.id}`}
+                onClick={() => setActiveTab(tab.id as any)}
+                style={{
+                  position: "relative",
+                  padding: "10px 20px 12px",
+                  borderTopLeftRadius: "var(--radius-md)",
+                  borderTopRightRadius: "var(--radius-md)",
+                  fontSize: 13, fontWeight: 400, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 7,
+                  fontFamily: "var(--font-display)",
+                  border: `1px solid ${active ? "var(--color-hairline)" : "transparent"}`,
+                  borderBottom: "none",
+                  marginBottom: active ? -1 : 0,
+                  background: active ? "var(--color-canvas)" : "var(--color-canvas-soft)",
+                  color: active ? "var(--color-ink)" : "var(--color-ink-mute)",
+                  boxShadow: active ? "0 -2px 6px rgba(10,25,41,0.05)" : "none",
+                  zIndex: active ? 2 : 1,
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {/* Gold top accent — the "index tab" marker for the open folder */}
+                {active && (
+                  <span style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "var(--color-gold)", borderTopLeftRadius: "var(--radius-md)", borderTopRightRadius: "var(--radius-md)" }} />
+                )}
+                <span className="flex items-center" style={{ color: active ? "var(--color-primary)" : "inherit" }}>{tab.icon}</span>
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Tab content */}
+        <div style={{ ...cardStyle, borderTopLeftRadius: 0, position: "relative", zIndex: 1 }}>
         <div style={{ padding: 24 }}>
 
           {/* ── Satellite Tab ──────────────────────────────────── */}
@@ -785,6 +803,7 @@ export default function ProjectDetailView({ id }: { id: string }) {
               )}
             </div>
           )}
+        </div>
         </div>
       </div>
 
